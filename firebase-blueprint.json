@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "description": "The user's role."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "The user's approval status."
+        },
+        "accessType": {
+          "type": "string",
+          "enum": ["unlimited", "limited", "none"],
+          "description": "The type of access granted."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the limited access expires."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user was created."
+        }
+      },
+      "required": ["email", "role", "status", "createdAt"]
+    },
+    "Generation": {
+      "title": "Generation",
+      "description": "A record of a question generation.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The user's UID."
+        },
+        "adaptationType": {
+          "type": "string",
+          "description": "The type of adaptation used."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the generation occurred."
+        },
+        "content": {
+          "type": "string",
+          "description": "The generated content (truncated or summary)."
+        }
+      },
+      "required": ["userId", "adaptationType", "createdAt", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user profiles."
+    },
+    "/users/{userId}/generations/{generationId}": {
+      "schema": {
+        "$ref": "#/entities/Generation"
+      },
+      "description": "Stores user question generation history."
+    }
+  }
+}

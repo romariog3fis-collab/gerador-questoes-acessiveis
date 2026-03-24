@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string (required, email format) - The user's email address
+    //   - displayName: string (optional) - The user's display name
+    //   - role: string (required, enum: ['admin', 'user']) - The user's role
+    //   - status: string (required, enum: ['pending', 'approved', 'rejected']) - The user's approval status
+    //   - accessType: string (optional, enum: ['unlimited', 'limited', 'none']) - The type of access
+    //   - expiresAt: timestamp (optional) - When the limited access expires
+    //   - createdAt: timestamp (required) - When the user was created
+    //   - uid: string (required) - The user's UID
+    //
+    // Collection: users/{userId}/generations
+    // Document ID: {generationId}
+    // Fields:
+    //   - userId: string (required) - The user's UID
+    //   - adaptationType: string (required) - The type of adaptation
+    //   - createdAt: timestamp (required) - When the generation occurred
+    //   - content: string (required) - The generated content
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    //
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    //
+    // Check if user owns the resource (for user-owned documents)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    //
+    // Check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "romariog3.fis@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+    //
+    // Validate email format
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    //
+    // Validate required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    //
+    // Validate that the document contains only the allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    //
+    // Domain Validators
+    function isValidUser() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['email', 'role', 'status', 'createdAt', 'uid']) &&
+             data.keys().hasOnly(['email', 'displayName', 'role', 'status', 'accessType', 'expiresAt', 'createdAt', 'uid']) &&
+             isValidEmail(data.email) &&
+             (!('displayName' in data) || data.displayName is string) &&
+             data.role in ['admin', 'user'] &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('accessType' in data) || data.accessType == null || data.accessType in ['unlimited', 'limited', 'none']) &&
+             (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is timestamp) &&
+             data.createdAt is timestamp &&
+             data.uid is string;
+    }
+
+    function isValidGeneration() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['userId', 'adaptationType', 'createdAt', 'content']) &&
+             data.keys().hasOnly(['userId', 'adaptationType', 'createdAt', 'content']) &&
+             data.userId == request.auth.uid &&
+             data.adaptationType is string &&
+             data.createdAt is timestamp &&
+             data.content is string &&
+             data.content.size() < 10000;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile, but cannot make themselves admin unless they are already admin
+      // Users can only create pending status unless they are already admin
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser() && (
+        (request.resource.data.role == 'user' && request.resource.data.status == 'pending') || isAdmin()
+      );
+      
+      // Users can update their own profile, but cannot change their role, status, accessType, or expiresAt
+      // Admins can update anything as long as it's a valid user
+      allow update: if isAuthenticated() && isValidUser() && (
+        (isOwner(userId) && 
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.status == resource.data.status &&
+         request.resource.data.get('accessType', null) == resource.data.get('accessType', null) &&
+         request.resource.data.get('expiresAt', null) == resource.data.get('expiresAt', null)
+        ) || isAdmin()
+      );
+      
+      // Only admins can delete users
+      allow delete: if isAdmin();
+
+      match /generations/{generationId} {
+        // Users can read and create their own generations
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidGeneration();
+        // Only admins can update or delete generations
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
