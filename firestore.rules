@@ -44,7 +44,7 @@ service cloud.firestore {
     // Check if user is admin
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email == "romariog3.fis@gmail.com" && request.auth.token.email_verified == true) ||
+        request.auth.token.email == "romariog3.fis@gmail.com" ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -130,13 +130,11 @@ service cloud.firestore {
     }
 
     match /pre_authorized_emails/{emailId} {
-      // Admins can manage all pre-authorized emails
-      allow read, write: if isAdmin();
+      // Admins and the hardcoded developer can manage these
+      allow read, write: if isAdmin() || request.auth.token.email == "romariog3.fis@gmail.com";
       
-      // Users can check if their own email is pre-authorized
-      // This allows both direct 'get' and 'where' queries
-      allow read, list: if isAuthenticated() && 
-                         (resource == null || resource.data.email == request.auth.token.email);
+      // Regular users can only check if their own email is in the list
+      allow read, list: if isAuthenticated() && (resource == null || resource.data.email == request.auth.token.email);
     }
 
     match /test/connection {

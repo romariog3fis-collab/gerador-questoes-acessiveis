@@ -378,11 +378,8 @@ const AdminPanel = () => {
         createdAt: serverTimestamp()
       });
       
-      console.log('Success! Clearing input.');
       setNewEmail('');
-      alert('E-mail pré-autorizado com sucesso!');
     } catch (error: any) {
-      console.error('CRITICAL Error adding email:', error);
       let message = 'Erro ao cadastrar e-mail.';
       if (error.code === 'permission-denied') {
         message = 'Você não tem permissão no Firebase para cadastrar e-mails. Verifique as Regras do Firestore.';
@@ -390,11 +387,8 @@ const AdminPanel = () => {
         message = error.message;
       }
       setAdminError(message);
-      // Fallback alert if UI doesn't show the error
-      alert('ERRO: ' + message);
     } finally {
       setIsAdding(false);
-      console.log('addPreAuthEmail finished.');
     }
   };
 
@@ -436,6 +430,16 @@ const AdminPanel = () => {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${uid}`);
+    }
+  };
+
+  const deleteUser = async (uid: string) => {
+    if (window.confirm('Tem certeza que deseja excluir permanentemente este usuário? Esta ação não pode ser desfeita.')) {
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `users/${uid}`);
+      }
     }
   };
 
@@ -615,9 +619,18 @@ const AdminPanel = () => {
                         <button
                           onClick={() => updateStatus(u.uid, 'rejected')}
                           className="w-9 h-9 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl transition-all shadow-sm"
-                          title="Recusar"
+                          title="Bloquear"
                         >
                           <UserX size={18} />
+                        </button>
+                      )}
+                      {u.email !== "romariog3.fis@gmail.com" && (
+                        <button
+                          onClick={() => deleteUser(u.uid)}
+                          className="w-9 h-9 flex items-center justify-center bg-slate-100 text-slate-400 hover:bg-red-600 hover:text-white rounded-xl transition-all shadow-sm"
+                          title="Excluir Usuário Permanentemente"
+                        >
+                          <Trash2 size={18} />
                         </button>
                       )}
                     </div>
