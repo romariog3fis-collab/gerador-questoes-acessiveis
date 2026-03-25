@@ -4,8 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc } from 'firebase/firestore';
-import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings } from 'lucide-react';
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface UserProfile {
@@ -61,14 +61,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (docSnap.exists()) {
             setProfile(docSnap.data() as UserProfile);
           } else {
-            // Create new profile
+            // Check if email is pre-authorized
+            const preAuthQuery = query(
+              collection(db, 'pre_authorized_emails'),
+              where('email', '==', currentUser.email)
+            );
+            const preAuthSnap = await getDocs(preAuthQuery);
+            const isPreAuthorized = !preAuthSnap.empty;
+
             const isDefaultAdmin = currentUser.email === ADMIN_EMAIL;
             const newProfile: UserProfile = {
               uid: currentUser.uid,
               email: currentUser.email || '',
               displayName: currentUser.displayName || '',
               role: isDefaultAdmin ? 'admin' : 'user',
-              status: isDefaultAdmin ? 'approved' : 'pending',
+              status: (isDefaultAdmin || isPreAuthorized) ? 'approved' : 'pending',
             };
             
             try {
@@ -76,6 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 ...newProfile,
                 createdAt: serverTimestamp(),
               });
+
+              // Clean up pre-authorization if it existed
+              if (isPreAuthorized) {
+                const deletePromises = preAuthSnap.docs.map(doc => deleteDoc(doc.ref));
+                await Promise.all(deletePromises);
+              }
+
               setProfile(newProfile);
             } catch (error) {
               handleFirestoreError(error, OperationType.CREATE, `users/${currentUser.uid}`);
@@ -304,23 +318,62 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
 
 const AdminPanel = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [preAuthEmails, setPreAuthEmails] = useState<{id: string, email: string}[]>([]);
+  const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'users'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qUsers = query(collection(db, 'users'));
+    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
       const usersList = snapshot.docs.map(doc => doc.data() as UserProfile);
       setUsers(usersList);
       setLoading(false);
     }, (error: any) => {
-      if (error.code === 'cancelled' || error.code === 'unavailable') {
-        return;
-      }
+      if (error.code === 'cancelled' || error.code === 'unavailable') return;
       handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
-    return () => unsubscribe();
+    const qPreAuth = query(collection(db, 'pre_authorized_emails'));
+    const unsubscribePreAuth = onSnapshot(qPreAuth, (snapshot) => {
+      const emailsList = snapshot.docs.map(doc => ({ id: doc.id, email: doc.data().email }));
+      setPreAuthEmails(emailsList);
+    }, (error: any) => {
+      if (error.code === 'cancelled' || error.code === 'unavailable') return;
+      handleFirestoreError(error, OperationType.LIST, 'pre_authorized_emails');
+    });
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribePreAuth();
+    };
   }, []);
+
+  const addPreAuthEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail.trim()) return;
+    
+    setIsAdding(true);
+    try {
+      await setDoc(doc(collection(db, 'pre_authorized_emails')), {
+        email: newEmail.trim().toLowerCase(),
+        createdAt: serverTimestamp()
+      });
+      setNewEmail('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'pre_authorized_emails');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const removePreAuthEmail = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'pre_authorized_emails', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `pre_authorized_emails/${id}`);
+    }
+  };
 
   const updateStatus = async (uid: string, status: 'approved' | 'rejected') => {
     try {
@@ -391,6 +444,59 @@ const AdminPanel = () => {
               <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">Pendentes</p>
             </div>
           </div>
+        </div>
+
+        {/* Seção de Pré-autorização */}
+        <div className="p-8 border-b border-slate-100">
+          <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+            <Mail size={20} className="text-blue-600" />
+            Pré-autorizar Novos E-mails
+          </h3>
+          
+          <form onSubmit={addPreAuthEmail} className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex-1 relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="email"
+                required
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="Digite o e-mail que deseja pré-autorizar..."
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isAdding}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-8 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200 disabled:opacity-50"
+            >
+              {isAdding ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+              Cadastrar E-mail
+            </button>
+          </form>
+
+          {preAuthEmails.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {preAuthEmails.map((item) => (
+                <div 
+                  key={item.id}
+                  className="bg-blue-50/50 border border-blue-100 px-4 py-2.5 rounded-xl flex items-center gap-3 group animate-in fade-in zoom-in duration-300"
+                >
+                  <span className="text-sm font-semibold text-blue-900">{item.email}</span>
+                  <button 
+                    onClick={() => removePreAuthEmail(item.id)}
+                    className="text-slate-400 hover:text-red-500 transition-colors"
+                    title="Remover pré-autorização"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {preAuthEmails.length === 0 && (
+            <p className="text-sm text-slate-400 italic">Nenhum e-mail aguardando pré-autorização.</p>
+          )}
         </div>
         
         <div className="overflow-x-auto">
