@@ -129,6 +129,16 @@ service cloud.firestore {
       }
     }
 
+    match /pre_authorized_emails/{emailId} {
+      // Admins can manage all pre-authorized emails
+      allow read, write: if isAdmin();
+      
+      // Users can check if their own email is pre-authorized
+      // This allows both direct 'get' and 'where' queries
+      allow read, list: if isAuthenticated() && 
+                         (resource == null || resource.data.email == request.auth.token.email);
+    }
+
     match /test/connection {
       allow read: if true;
     }

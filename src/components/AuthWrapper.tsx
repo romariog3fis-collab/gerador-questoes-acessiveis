@@ -4,8 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail } from 'lucide-react';
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc, where, getDocs, deleteDoc, orderBy, addDoc } from 'firebase/firestore';
+import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface UserProfile {
@@ -322,11 +322,15 @@ const AdminPanel = () => {
   const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
 
   useEffect(() => {
-    const qUsers = query(collection(db, 'users'));
+    const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
-      const usersList = snapshot.docs.map(doc => doc.data() as UserProfile);
+      const usersList = snapshot.docs.map(doc => ({ 
+        uid: doc.id, 
+        ...doc.data() 
+      } as UserProfile));
       setUsers(usersList);
       setLoading(false);
     }, (error: any) => {
@@ -351,19 +355,46 @@ const AdminPanel = () => {
 
   const addPreAuthEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmail.trim()) return;
+    console.log('addPreAuthEmail function started with email:', newEmail);
+    if (!newEmail.trim()) {
+      console.log('Email is empty, returning.');
+      return;
+    }
     
     setIsAdding(true);
+    setAdminError(null);
     try {
-      await setDoc(doc(collection(db, 'pre_authorized_emails')), {
-        email: newEmail.trim().toLowerCase(),
+      const email = newEmail.trim().toLowerCase();
+      console.log('Formatted email:', email);
+      
+      // Basic email validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('E-mail inválido (formato incorreto)');
+      }
+
+      console.log('Attempting to add to Firestore...');
+      await addDoc(collection(db, 'pre_authorized_emails'), {
+        email: email,
         createdAt: serverTimestamp()
       });
+      
+      console.log('Success! Clearing input.');
       setNewEmail('');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'pre_authorized_emails');
+      alert('E-mail pré-autorizado com sucesso!');
+    } catch (error: any) {
+      console.error('CRITICAL Error adding email:', error);
+      let message = 'Erro ao cadastrar e-mail.';
+      if (error.code === 'permission-denied') {
+        message = 'Você não tem permissão no Firebase para cadastrar e-mails. Verifique as Regras do Firestore.';
+      } else if (error.message) {
+        message = error.message;
+      }
+      setAdminError(message);
+      // Fallback alert if UI doesn't show the error
+      alert('ERRO: ' + message);
     } finally {
       setIsAdding(false);
+      console.log('addPreAuthEmail finished.');
     }
   };
 
@@ -453,6 +484,17 @@ const AdminPanel = () => {
             Pré-autorizar Novos E-mails
           </h3>
           
+          {adminError && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm font-medium flex items-center gap-2"
+            >
+              <X size={16} />
+              {adminError}
+            </motion.div>
+          )}
+          
           <form onSubmit={addPreAuthEmail} className="flex flex-col md:flex-row gap-4 mb-8">
             <div className="flex-1 relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -499,8 +541,8 @@ const AdminPanel = () => {
           )}
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
+          <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/30 text-slate-400 text-[10px] uppercase tracking-[0.2em] font-bold">
                 <th className="px-8 py-5">Identificação</th>
