@@ -180,13 +180,25 @@ export default function Home() {
   const handleDownloadDoc = () => {
     if (!resultRef.current) return;
     const htmlContent = resultRef.current.innerHTML;
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Questões Adaptadas</title></head><body>";
+    // Cabeçalho compatível com Word Mobile
+    const header = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+            xmlns:w='urn:schemas-microsoft-com:office:word' 
+            xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>Questões Adaptadas</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; }
+          .prose { max-width: 100%; }
+        </style>
+      </head>
+      <body>
+    `;
     const footer = "</body></html>";
     const sourceHTML = header + htmlContent + footer;
     
-    const blob = new Blob(['\ufeff', sourceHTML], {
-      type: 'application/msword'
-    });
+    const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -203,6 +215,10 @@ export default function Home() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -385,7 +401,29 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-4 md:p-8 lg:p-12">
+    <>
+      <style jsx global>{`
+        @media print {
+          nav, aside, footer, .no-print, button, .lg\\:col-span-5 {
+            display: none !important;
+          }
+          .lg\\:col-span-7 {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          body {
+            background: white !important;
+          }
+          .prose {
+            max-width: 100% !important;
+          }
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-4 md:p-8 lg:p-12">
       <div className="max-w-7xl mx-auto">
         <header className="mb-12 text-center max-w-3xl mx-auto">
           <motion.div
@@ -726,11 +764,19 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
                     <span>Copiar</span>
                   </button>
                   <button 
+                    onClick={handlePrint}
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-lg shadow-indigo-100 active:scale-95 text-sm"
+                    title="Exportar para PDF"
+                  >
+                    <Download size={18} />
+                    <span>PDF</span>
+                  </button>
+                  <button 
                     onClick={handleDownloadDoc} 
                     className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-lg shadow-emerald-100 active:scale-95 text-sm"
                   >
-                    <Download size={18} />
-                    Exportar .DOC
+                    <FileText size={18} />
+                    <span>Word</span>
                   </button>
                 </div>
               )}
@@ -837,5 +883,6 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
         </div>
       </div>
     </div>
+    </>
   );
 }
