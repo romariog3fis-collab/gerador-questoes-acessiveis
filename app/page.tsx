@@ -29,8 +29,12 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
   // Usar uma semente estável baseada no prompt + retryCount para mudar a imagem se o usuário pedir
   const stableSeed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + retryCount;
   
-  // Limitar o prompt para evitar URLs gigantescas e usar o modelo turbo para mais velocidade
-  const cleanPrompt = prompt.substring(0, 400).trim();
+  // Sanitização rigorosa do prompt para evitar caracteres de markdown (***, "", etc) que quebram a URL
+  const cleanPrompt = prompt
+    .replace(/^["'*_#\s]+|["'*_#\s]+$/g, '') // Remove aspas, asteriscos, underscores, sustenidos e espaços nas extremidades
+    .substring(0, 400)
+    .trim();
+
   const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=turbo`;
   
   const handleRetry = () => {
