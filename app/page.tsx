@@ -245,7 +245,12 @@ Regras de Redação para Acessibilidade:
 ESTRUTURA PARA IMAGENS (CRÍTICO):
 - Se a opção "Recursos Visuais" estiver ativada, você DEVE SEMPRE gerar um prompt descritivo para cada questão.
 - O formato DEVE ser exatamente: [PROMPT_IMAGEM: descrição detalhada em inglês da cena visual que ilustra a questão]
-- **REGRA DE OURO**: NÃO TRADUZA a palavra "PROMPT_IMAGEM". Use sempre este termo exato entre colchetes, mesmo se o texto estiver em CAIXA ALTA.
+- **ESTILO DAS IMAGENS**: Gere prompts focados em ESTILO EDUCATIVO SIMPLES: "flat vector illustration", "minimalist clipart", "schematic diagram", "educational drawing", "bold lines", "white background". 
+- **ADAPTAÇÃO POR IDADE**:
+    - Anos iniciais/Infantil: Conteúdo muito simples (dedos contando, maçãs, relógios simples, animais amigáveis).
+    - Anos finais/Ensino Médio: Esquemas claros, diagramas de física/química sem sombras complexas, gráficos legíveis.
+- **REGRA DE OURO**: EVITE estilos "3D", "photorealistic" ou cenas complexas. A imagem deve ser clara para um aluno com TDAH ou Deficiência Intelectual. 
+- NÃO TRADUZA a palavra "PROMPT_IMAGEM". Use sempre este termo exato entre colchetes.
 - Coloque este código e o prompt SEMPRE logo abaixo do enunciado da questão.
 
 Estrutura da Saída (Questão Objetiva):
