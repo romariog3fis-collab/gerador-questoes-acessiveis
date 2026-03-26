@@ -29,13 +29,20 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
   // Usar uma semente estável robusta baseada no prompt + retryCount
   const stableSeed = Math.floor(Math.abs(prompt.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)) % 1000000) + retryCount;
   
-  // Sanitização rigorosa do prompt para evitar caracteres de markdown (***, "", etc) que quebram a URL
+  // Sanitização rigorosa do prompt para evitar caracteres que quebram a URL ou o modelo
   const cleanPrompt = prompt
-    .replace(/^["'*_#\s]+|["'*_#\s]+$/g, '') // Remove aspas, asteriscos, underscores, sustenidos e espaços nas extremidades
-    .substring(0, 400)
+    .replace(/^["'*_#\s\[]+|["'*_#\s\]]+$/g, '') // Remove aspas, colchetes, etc nas extremidades
+    .replace(/[.;:!?,]$/, '') // Remove pontuação final que pode confundir algumas IAs
+    .substring(0, 450)
     .trim();
 
-  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=turbo`;
+  // A API do Pollinations agora recomenda o uso de gen.pollinations.ai e exige uma chave para certas operações
+  // Tentamos usar a chave se disponível, caso contrário usamos o acesso público (que pode ser limitado)
+  const apiKey = process.env.NEXT_PUBLIC_POLLINATIONS_API_KEY || '';
+  const authParam = apiKey ? `&key=${apiKey}` : '';
+  
+  // Usamos flux como modelo padrão pois o turbo foi descontinuado/invalidado
+  const imageUrl = `https://gen.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=flux${authParam}`;
   
   const handleRetry = () => {
     setError(false);
@@ -71,7 +78,10 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
               <X size={32} />
             </div>
             <p className="text-xs font-bold text-slate-600 uppercase mb-2">Ops! A IA se distraiu...</p>
-            <p className="text-[10px] text-slate-400 mb-6 max-w-xs">Não conseguimos gerar esta ilustração agora. O servidor pode estar ocupado.</p>
+            <p className="text-[10px] text-slate-400 mb-6 max-w-xs">Não conseguimos gerar esta ilustração agora. O servidor pode estar ocupado ou requer autenticação.</p>
+            {!apiKey && (
+              <p className="text-[9px] text-amber-600 font-bold uppercase mb-4 bg-amber-50 px-2 py-1 rounded">Dica: Adicione uma chave API do Pollinations para maior estabilidade</p>
+            )}
             <button 
               onClick={handleRetry}
               className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 mb-4"
@@ -95,8 +105,9 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
             alt={prompt}
             className={`w-full h-full object-cover transition-all duration-1000 ${loading ? 'opacity-0 scale-110 blur-sm' : 'opacity-100 scale-100 blur-0'} group-hover:scale-105`}
             onLoad={() => setLoading(false)}
-            onError={() => { 
+            onError={(e) => { 
                 console.error("Erro no Pollinations:", imageUrl);
+                // Se falhar o flux, podemos tentar o modelo padrão (sem model parameter) no próximo retry se quisermos
                 setLoading(false); 
                 setError(true); 
             }}
