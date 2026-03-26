@@ -24,11 +24,21 @@ interface HistoryItem {
 const ImagePrompt = ({ prompt }: { prompt: string }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
-  // Usar uma semente estável baseada no prompt para evitar que a imagem mude a cada renderização
-  const stableSeed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&enhance=true`;
+  // Usar uma semente estável baseada no prompt + retryCount para mudar a imagem se o usuário pedir
+  const stableSeed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + retryCount;
   
+  // Limitar o prompt para evitar URLs gigantescas e usar o modelo turbo para mais velocidade
+  const cleanPrompt = prompt.substring(0, 400).trim();
+  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=turbo`;
+  
+  const handleRetry = () => {
+    setError(false);
+    setLoading(true);
+    setRetryCount(prev => prev + 1);
+  };
+
   return (
     <div className="my-8 rounded-3xl overflow-hidden border border-slate-100 shadow-xl bg-slate-50 group transition-all hover:shadow-2xl hover:border-blue-100">
       <div className="p-4 bg-white border-b border-slate-50 flex items-center justify-between">
@@ -45,34 +55,44 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
       </div>
       <div className="relative aspect-video bg-slate-100 overflow-hidden flex items-center justify-center">
         {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-10 transition-opacity">
             <Loader2 className="animate-spin text-indigo-600 mb-2" size={32} />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Criando Imagem...</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Criando Imagem...</span>
           </div>
         )}
         
         {error ? (
           <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 w-full h-full">
-            <X className="text-red-400 mb-2" size={32} />
-            <p className="text-xs font-bold text-slate-500 uppercase">Falha ao carregar imagem</p>
-            <p className="text-[10px] text-slate-400 mt-1 max-w-xs">{prompt}</p>
+            <div className="bg-red-50 text-red-400 p-4 rounded-full mb-4">
+              <X size={32} />
+            </div>
+            <p className="text-xs font-bold text-slate-600 uppercase mb-2">Ops! A IA se distraiu...</p>
+            <p className="text-[10px] text-slate-400 mb-6 max-w-xs">Não conseguimos gerar esta ilustração agora. O servidor pode estar ocupado.</p>
+            <button 
+              onClick={handleRetry}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+            >
+              <History size={14} />
+              TENTAR NOVAMENTE
+            </button>
           </div>
         ) : (
           <img 
+            key={`${imageUrl}-${retryCount}`}
             src={imageUrl} 
             alt={prompt}
-            className={`w-full h-full object-cover transition-all duration-700 ${loading ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} group-hover:scale-110`}
+            className={`w-full h-full object-cover transition-all duration-1000 ${loading ? 'opacity-0 scale-110 blur-sm' : 'opacity-100 scale-100 blur-0'} group-hover:scale-105`}
             onLoad={() => setLoading(false)}
             onError={() => { setLoading(false); setError(true); }}
             loading="lazy"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none opacity-40" />
       </div>
       <div className="p-4 bg-white border-t border-slate-50">
         <div className="flex items-start gap-2">
           <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0" />
-          <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">
+          <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all">
             "{prompt}"
           </p>
         </div>
