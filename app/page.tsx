@@ -243,14 +243,21 @@ Regras de Redação para Acessibilidade:
   * Exemplo Correto: "Observe a imagem. O que a seta empurrando a caixa representa? (A) Força (B) Temperatura"
   O objetivo é avaliar o entendimento do conceito, NUNCA a habilidade de cálculo. As alternativas devem conter palavras ou descrições visuais, não números para calcular. Use LaTeX ($$) apenas se precisar mostrar a fórmula como uma imagem conceitual.
 
-GERAÇÃO DE AUXÍLIO VISUAL (CRÍTICO):
-- Se a opção "Descrição Visual" estiver ON: Você DEVE incluir uma seção chamada "AUXÍLIO VISUAL PARA COMPREENSÃO:" com uma descrição clara e simples em PORTUGUÊS do que a imagem deveria mostrar para ajudar o aluno.
-- Se a opção "Gerar Ilustrações" estiver ON: Você DEVE incluir exatamente: [PROMPT_IMAGEM: descrição técnica em inglês para a IA] logo abaixo da descrição visual.
+GERAÇÃO DE AUXÍLIO VISUAL E AUDIODESCRIÇÃO (CRÍTICO):
+- Se "Descrição Visual" estiver ON: Inclua "AUXÍLIO VISUAL PARA COMPREENSÃO:" com descrição clara em PORTUGUÊS. 
+  * Se "Deficiência Visual" estiver ON, transforme isso em uma AUDIODESCRIÇÃO técnica e espacial.
+- Se "Gerar Ilustrações" estiver ON: Inclua exatamente: [PROMPT_IMAGEM: descrição técnica em inglês para a IA].
 
-ESTILO DAS IMAGENS (PARA A IA):
-- Use sempre ESTILO EDUCATIVO SIMPLES: "flat vector illustration", "minimalist clipart", "schematic diagram", "educational drawing", "bold lines", "white background", "high contrast".
-- EVITE estilos "3D", "photorealistic" ou complexos. 
-- NÃO TRADUZA a palavra "PROMPT_IMAGEM" dentro dos colchetes.
+MANUAL DE ADAPTAÇÃO POR NECESSIDADE (AEE):
+1. TDAH: Frases curtas, ordem direta (S+V+C), comando em **NEGRITO**. 1 ideia por parágrafo.
+2. DISLEXIA: Vocabulário simples, evitar textos longos, sem ambiguidades.
+3. DISCALCULIA/COGNITIVA: PROIBIDO pedir cálculos. Transforme em identificação visual ou lógica real.
+4. TEA (AUTISMO): Linguagem literal/denotativa. Sem ironias ou metáforas.
+5. DEFICIÊNCIA VISUAL: Texto rico em detalhes espaciais e descritivos.
+
+ESTILO DAS IMAGENS (AEE):
+- Use: "flat vector illustration", "minimalist clipart", "bold black outlines", "white background", "high contrast".
+- EVITE: 3D, sombras, fotorrealismo ou fundos complexos.
 
 Estrutura da Saída (Questão Objetiva):
 - Fonte: Identificar o material.
@@ -382,9 +389,14 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4 tracking-tight">
-              Geração de Questões <span className="text-blue-600">Acessíveis</span>
-            </h1>
+            <div className="flex flex-col items-center gap-2 mb-4">
+              <span className="bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full tracking-[0.2em] shadow-lg shadow-indigo-200 uppercase">
+                Pedagogia Especializada
+              </span>
+              <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
+                Geração de Questões <span className="text-indigo-600">Acessíveis</span>
+              </h1>
+            </div>
             <p className="text-slate-500 text-lg leading-relaxed">
               Transforme materiais didáticos em avaliações inclusivas com o poder da inteligência artificial, 
               garantindo que nenhum aluno fique para trás.
