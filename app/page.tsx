@@ -110,7 +110,8 @@ export default function Home() {
   const [etapaEnsino, setEtapaEnsino] = useState('');
   const [adaptacoes, setAdaptacoes] = useState('');
   const [caixaAlta, setCaixaAlta] = useState(false);
-  const [gerarImagens, setGerarImagens] = useState(false);
+  const [incluirDescricaoVisual, setIncluirDescricaoVisual] = useState(false);
+  const [gerarImagensIA, setGerarImagensIA] = useState(false);
   
   const [resultado, setResultado] = useState('');
   const [loading, setLoading] = useState(false);
@@ -242,16 +243,14 @@ Regras de Redação para Acessibilidade:
   * Exemplo Correto: "Observe a imagem. O que a seta empurrando a caixa representa? (A) Força (B) Temperatura"
   O objetivo é avaliar o entendimento do conceito, NUNCA a habilidade de cálculo. As alternativas devem conter palavras ou descrições visuais, não números para calcular. Use LaTeX ($$) apenas se precisar mostrar a fórmula como uma imagem conceitual.
 
-ESTRUTURA PARA IMAGENS (CRÍTICO):
-- Se a opção "Recursos Visuais" estiver ativada, você DEVE SEMPRE gerar um prompt descritivo para cada questão.
-- O formato DEVE ser exatamente: [PROMPT_IMAGEM: descrição detalhada em inglês da cena visual que ilustra a questão]
-- **ESTILO DAS IMAGENS**: Gere prompts focados em ESTILO EDUCATIVO SIMPLES: "flat vector illustration", "minimalist clipart", "schematic diagram", "educational drawing", "bold lines", "white background". 
-- **ADAPTAÇÃO POR IDADE**:
-    - Anos iniciais/Infantil: Conteúdo muito simples (dedos contando, maçãs, relógios simples, animais amigáveis).
-    - Anos finais/Ensino Médio: Esquemas claros, diagramas de física/química sem sombras complexas, gráficos legíveis.
-- **REGRA DE OURO**: EVITE estilos "3D", "photorealistic" ou cenas complexas. A imagem deve ser clara para um aluno com TDAH ou Deficiência Intelectual. 
-- NÃO TRADUZA a palavra "PROMPT_IMAGEM". Use sempre este termo exato entre colchetes.
-- Coloque este código e o prompt SEMPRE logo abaixo do enunciado da questão.
+GERAÇÃO DE AUXÍLIO VISUAL (CRÍTICO):
+- Se a opção "Descrição Visual" estiver ON: Você DEVE incluir uma seção chamada "AUXÍLIO VISUAL PARA COMPREENSÃO:" com uma descrição clara e simples em PORTUGUÊS do que a imagem deveria mostrar para ajudar o aluno.
+- Se a opção "Gerar Ilustrações" estiver ON: Você DEVE incluir exatamente: [PROMPT_IMAGEM: descrição técnica em inglês para a IA] logo abaixo da descrição visual.
+
+ESTILO DAS IMAGENS (PARA A IA):
+- Use sempre ESTILO EDUCATIVO SIMPLES: "flat vector illustration", "minimalist clipart", "schematic diagram", "educational drawing", "bold lines", "white background", "high contrast".
+- EVITE estilos "3D", "photorealistic" ou complexos. 
+- NÃO TRADUZA a palavra "PROMPT_IMAGEM" dentro dos colchetes.
 
 Estrutura da Saída (Questão Objetiva):
 - Fonte: Identificar o material.
@@ -286,7 +285,8 @@ DIRETRIZES CRÍTICAS:
 - Necessidades de Adaptação: ${adaptacoes}
 ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().includes('cognitiva') || adaptacoes.toLowerCase().includes('discalculia') ? 'ATENÇÃO MÁXIMA: O USUÁRIO PEDIU REDUÇÃO DE CÁLCULOS OU CARGA COGNITIVA. VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INCLUIR QUALQUER CÁLCULO MATEMÁTICO. TRANSFORME TODAS AS QUESTÕES EM IDENTIFICAÇÃO DE IMAGENS OU CONCEITOS BÁSICOS DO DIA A DIA. AS ALTERNATIVAS DEVEM SER PALAVRAS, NÃO NÚMEROS.' : ''}
 - Usar Caixa Alta (Letras Maiúsculas): ${caixaAlta ? 'SIM - TODO O TEXTO DEVE ESTAR EM MAIÚSCULAS' : 'NÃO'}
-- Recursos Visuais (Prompts para Imagens): ${gerarImagens ? 'SIM - INCLUIR PROMPT EM INGLÊS PARA GERAÇÃO DE IMAGEM' : 'NÃO'}
+- Descrição Visual (Texto em Português): ${incluirDescricaoVisual ? 'SIM - GERAR SEÇÃO DE AUXÍLIO VISUAL' : 'NÃO'}
+- Gerar Ilustrações por IA (Prompt em Inglês): ${gerarImagensIA ? 'SIM - INCLUIR TAG [PROMPT_IMAGEM: ...]' : 'NÃO'}
       `;
 
       let parts: any[] = [];
@@ -522,20 +522,49 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
                   </span>
                 </div>
 
-                <div 
-                  className={`flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
-                    gerarImagens ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
-                  }`}
-                  onClick={() => setGerarImagens(!gerarImagens)}
-                >
-                  <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
-                    gerarImagens ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'
-                  }`}>
-                    {gerarImagens && <div className="w-2 h-2 bg-white rounded-full" />}
-                  </div>
-                  <span className={`text-sm font-bold transition-colors ${gerarImagens ? 'text-indigo-900' : 'text-slate-600'}`}>
-                    Incluir Prompts para Imagens
-                  </span>
+                <div className="space-y-3">
+                  <button 
+                    type="button"
+                    className={`flex items-center gap-3 p-4 rounded-2xl border transition-all w-full ${
+                      incluirDescricaoVisual ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
+                    }`}
+                    onClick={() => setIncluirDescricaoVisual(!incluirDescricaoVisual)}
+                  >
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
+                      incluirDescricaoVisual ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'
+                    }`}>
+                      {incluirDescricaoVisual && <div className="w-2 h-2 bg-white rounded-full" />}
+                    </div>
+                    <div className="flex flex-col items-start translate-y-[-1px]">
+                      <span className={`text-sm font-bold transition-colors ${incluirDescricaoVisual ? 'text-indigo-900' : 'text-slate-600'}`}>
+                        Descrever Auxílio Visual
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Texto de apoio para o professor</span>
+                    </div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    className={`flex items-center gap-3 p-4 rounded-2xl border transition-all w-full ${
+                      gerarImagensIA ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
+                    }`}
+                    onClick={() => setGerarImagensIA(!gerarImagensIA)}
+                  >
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
+                      gerarImagensIA ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'
+                    }`}>
+                      {gerarImagensIA && <div className="w-2 h-2 bg-white rounded-full" />}
+                    </div>
+                    <div className="flex flex-col items-start translate-y-[-1px]">
+                      <span className={`text-sm font-bold transition-colors ${gerarImagensIA ? 'text-blue-900' : 'text-slate-600'}`}>
+                        Gerar Ilustração por IA
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Criar imagem automática</span>
+                    </div>
+                    <div className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-tighter">
+                      IA
+                    </div>
+                  </button>
                 </div>
               </div>
 
