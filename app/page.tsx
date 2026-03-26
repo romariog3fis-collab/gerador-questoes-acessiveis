@@ -8,7 +8,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import mammoth from 'mammoth';
 import 'katex/dist/katex.min.css';
-import { Loader2, Send, FileText, UploadCloud, X, Download, History, Calendar, Copy } from 'lucide-react';
+import { Loader2, Send, FileText, UploadCloud, X, Download, History, Calendar, Copy, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { useAuth } from '../src/components/AuthWrapper';
 import { db, handleFirestoreError, OperationType } from '../src/lib/firebase';
 import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
@@ -20,6 +20,41 @@ interface HistoryItem {
   createdAt: Timestamp;
   content: string;
 }
+
+const ImagePrompt = ({ prompt }: { prompt: string }) => {
+  const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
+  
+  return (
+    <div className="my-8 rounded-3xl overflow-hidden border border-slate-100 shadow-xl bg-slate-50 group transition-all hover:shadow-2xl hover:border-blue-100">
+      <div className="p-4 bg-white border-b border-slate-50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
+            <ImageIcon size={18} />
+          </div>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ilustração Gerada por IA</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full animate-pulse">
+          <Sparkles size={12} />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">IA Criativa</span>
+        </div>
+      </div>
+      <div className="relative aspect-video bg-slate-200 overflow-hidden">
+        <img 
+          src={imageUrl} 
+          alt={prompt}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+      </div>
+      <div className="p-4 bg-slate-50/50">
+        <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic">
+          "{prompt}"
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export default function Home() {
   const [material, setMaterial] = useState('');
@@ -162,11 +197,17 @@ Regras de Redação para Acessibilidade:
   * Exemplo Correto: "Observe a imagem. O que a seta empurrando a caixa representa? (A) Força (B) Temperatura"
   O objetivo é avaliar o entendimento do conceito, NUNCA a habilidade de cálculo. As alternativas devem conter palavras ou descrições visuais, não números para calcular. Use LaTeX ($$) apenas se precisar mostrar a fórmula como uma imagem conceitual.
 
+ESTRUTURA PARA IMAGENS (CRÍTICO):
+- Se a opção "Recursos Visuais" estiver ativada, você DEVE SEMPRE gerar um prompt descritivo para cada questão.
+- O formato DEVE ser exatamente: [PROMPT_IMAGEM: descrição detalhada em inglês da cena visual que ilustra a questão]
+- **REGRA DE OURO**: NÃO TRADUZA a palavra "PROMPT_IMAGEM". Use sempre este termo exato entre colchetes, mesmo se o texto estiver em CAIXA ALTA.
+- Coloque este código e o prompt SEMPRE logo abaixo do enunciado da questão.
+
 Estrutura da Saída (Questão Objetiva):
 - Fonte: Identificar o material.
 - Nível de Adaptação: [Descrição].
 - Enunciado: [Texto direto].
-- Prompt para Geração de Imagem: [Apenas se a opção estiver ativada, inclua o prompt em inglês aqui].
+- [PROMPT_IMAGEM: prompt em inglês] (Apenas se a opção estiver ativada).
 - Alternativas: Apenas 3 ou 4 (A, B, C, D).
 - Recursos de Acessibilidade: Incluir obrigatoriamente Glossário (palavras difíceis) e Passo a Passo (guia mental).
 - Gabarito e Justificativa: Letra correta + explicação simples do porquê está certa e por que as outras estão erradas.
@@ -649,6 +690,42 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm, remarkMath]} 
                       rehypePlugins={[rehypeKatex]}
+                      components={{
+                        p: ({ children }) => {
+                          const childrenArray = Array.isArray(children) ? children : [children];
+                          const content = childrenArray
+                            .map(child => typeof child === 'string' ? child : (child?.props?.children?.toString() || ''))
+                            .join('')
+                            .trim();
+                          
+                          const upperContent = content.toUpperCase();
+                          // Detecta variações de tags que a IA costuma usar
+                          const isPromptTag = upperContent.includes('[PROMPT_IMAGEM:') || 
+                                             upperContent.includes('PROMPT PARA GERAÇÃO DE IMAGEM:') ||
+                                             upperContent.includes('PROMPT DE IMAGEM:');
+
+                          if (isPromptTag) {
+                            let prompt = '';
+                            if (upperContent.includes('[PROMPT_IMAGEM:')) {
+                              const match = content.match(/\[PROMPT_IMAGEM:\s*(.*?)\]/i);
+                              prompt = match ? match[1] : '';
+                            } else {
+                              // Fallback para quando a IA esquece os colchetes or traduz a tag
+                              prompt = content
+                                .replace(/PROMPT PARA GERAÇÃO DE IMAGEM:/i, '')
+                                .replace(/PROMPT DE IMAGEM:/i, '')
+                                .replace(/\[PROMPT_IMAGEM:/i, '')
+                                .replace(/\]/g, '')
+                                .trim();
+                            }
+                            
+                            if (prompt && prompt.length > 5) {
+                              return <ImagePrompt prompt={prompt} />;
+                            }
+                          }
+                          return <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>;
+                        }
+                      }}
                     >
                       {resultado}
                     </ReactMarkdown>
