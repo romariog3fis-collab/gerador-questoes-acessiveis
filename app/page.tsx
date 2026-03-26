@@ -50,7 +50,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
         </div>
         <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full border border-indigo-100 shadow-sm animate-pulse">
           <Sparkles size={12} />
-          <span className="text-[10px] font-bold uppercase tracking-tighter">IA Criativa</span>
+          <span className="text-[10px] font-bold uppercase tracking-tighter">IA em Teste / Experimental</span>
         </div>
       </div>
       <div className="relative aspect-video bg-slate-100 overflow-hidden flex items-center justify-center">
@@ -568,9 +568,14 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
                       {gerarImagensIA && <div className="w-2 h-2 bg-white rounded-full" />}
                     </div>
                     <div className="flex flex-col items-start translate-y-[-1px]">
-                      <span className={`text-sm font-bold transition-colors ${gerarImagensIA ? 'text-blue-900' : 'text-slate-600'}`}>
-                        Gerar Ilustração por IA
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-bold transition-colors ${gerarImagensIA ? 'text-blue-900' : 'text-slate-600'}`}>
+                          Gerar Ilustração por IA
+                        </span>
+                        <span className="bg-amber-100 text-amber-600 text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter border border-amber-200">
+                          Beta / Teste
+                        </span>
+                      </div>
                       <span className="text-[10px] text-slate-400 font-medium">Criar imagem automática</span>
                     </div>
                     <div className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-tighter">
