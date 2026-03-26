@@ -22,7 +22,12 @@ interface HistoryItem {
 }
 
 const ImagePrompt = ({ prompt }: { prompt: string }) => {
-  const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  
+  // Usar uma semente estável baseada no prompt para evitar que a imagem mude a cada renderização
+  const stableSeed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&enhance=true`;
   
   return (
     <div className="my-8 rounded-3xl overflow-hidden border border-slate-100 shadow-xl bg-slate-50 group transition-all hover:shadow-2xl hover:border-blue-100">
@@ -33,24 +38,44 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
           </div>
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ilustração Gerada por IA</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full animate-pulse">
+        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full border border-indigo-100 shadow-sm animate-pulse">
           <Sparkles size={12} />
           <span className="text-[10px] font-bold uppercase tracking-tighter">IA Criativa</span>
         </div>
       </div>
-      <div className="relative aspect-video bg-slate-200 overflow-hidden">
-        <img 
-          src={imageUrl} 
-          alt={prompt}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+      <div className="relative aspect-video bg-slate-100 overflow-hidden flex items-center justify-center">
+        {loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-10">
+            <Loader2 className="animate-spin text-indigo-600 mb-2" size={32} />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Criando Imagem...</span>
+          </div>
+        )}
+        
+        {error ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 w-full h-full">
+            <X className="text-red-400 mb-2" size={32} />
+            <p className="text-xs font-bold text-slate-500 uppercase">Falha ao carregar imagem</p>
+            <p className="text-[10px] text-slate-400 mt-1 max-w-xs">{prompt}</p>
+          </div>
+        ) : (
+          <img 
+            src={imageUrl} 
+            alt={prompt}
+            className={`w-full h-full object-cover transition-all duration-700 ${loading ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} group-hover:scale-110`}
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setError(true); }}
+            loading="lazy"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none opacity-60" />
       </div>
-      <div className="p-4 bg-slate-50/50">
-        <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic">
-          "{prompt}"
-        </p>
+      <div className="p-4 bg-white border-t border-slate-50">
+        <div className="flex items-start gap-2">
+          <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0" />
+          <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">
+            "{prompt}"
+          </p>
+        </div>
       </div>
     </div>
   );
