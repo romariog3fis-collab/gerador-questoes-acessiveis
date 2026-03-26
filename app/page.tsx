@@ -26,8 +26,8 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   
-  // Usar uma semente estável baseada no prompt + retryCount para mudar a imagem se o usuário pedir
-  const stableSeed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + retryCount;
+  // Usar uma semente estável robusta baseada no prompt + retryCount
+  const stableSeed = Math.floor(Math.abs(prompt.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)) % 1000000) + retryCount;
   
   // Sanitização rigorosa do prompt para evitar caracteres de markdown (***, "", etc) que quebram a URL
   const cleanPrompt = prompt
@@ -87,8 +87,13 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
             alt={prompt}
             className={`w-full h-full object-cover transition-all duration-1000 ${loading ? 'opacity-0 scale-110 blur-sm' : 'opacity-100 scale-100 blur-0'} group-hover:scale-105`}
             onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setError(true); }}
+            onError={() => { 
+                console.error("Erro no Pollinations:", imageUrl);
+                setLoading(false); 
+                setError(true); 
+            }}
             loading="lazy"
+            referrerPolicy="no-referrer"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none opacity-40" />
@@ -97,7 +102,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
         <div className="flex items-start gap-2">
           <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0" />
           <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all">
-            "{prompt}"
+            "{cleanPrompt}"
           </p>
         </div>
       </div>
