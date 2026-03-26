@@ -74,11 +74,19 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
             <p className="text-[10px] text-slate-400 mb-6 max-w-xs">Não conseguimos gerar esta ilustração agora. O servidor pode estar ocupado.</p>
             <button 
               onClick={handleRetry}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 mb-4"
             >
               <History size={14} />
               TENTAR NOVAMENTE
             </button>
+            <a 
+              href={imageUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[10px] text-indigo-500 hover:underline font-medium"
+            >
+              Ver imagem em nova aba (Diagnóstico)
+            </a>
           </div>
         ) : (
           <img 
@@ -94,6 +102,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
             }}
             loading="lazy"
             referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none opacity-40" />
