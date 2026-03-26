@@ -31,8 +31,8 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
   
   // Sanitização rigorosa do prompt para evitar caracteres que quebram a URL ou o modelo
   const cleanPrompt = prompt
-    .replace(/^["'*_#\s\[]+|["'*_#\s\]]+$/g, '') // Remove aspas, colchetes, etc nas extremidades
-    .replace(/[.;:!?,]$/, '') // Remove pontuação final que pode confundir algumas IAs
+    .replace(/^[*_#\-+>`"\s\[\]]+|[*_#\-+>`"\s\[\]]+$/g, '') // Remove artefatos de formatação nas extremidades
+    .replace(/[.;:!?,]$/, '') // Remove pontuação final redundante
     .substring(0, 450)
     .trim();
 
@@ -42,7 +42,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
   const authParam = apiKey ? `&key=${apiKey}` : '';
   
   // Usamos flux como modelo padrão pois o turbo foi descontinuado/invalidado
-  const imageUrl = `https://gen.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=flux${authParam}`;
+  const imageUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=flux${authParam}`;
   
   const handleRetry = () => {
     setError(false);
