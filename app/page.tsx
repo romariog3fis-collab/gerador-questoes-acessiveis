@@ -36,13 +36,8 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
     .substring(0, 450)
     .trim();
 
-  // A API do Pollinations agora recomenda o uso de gen.pollinations.ai e exige uma chave para certas operações
-  // Tentamos usar a chave se disponível, caso contrário usamos o acesso público (que pode ser limitado)
-  const apiKey = process.env.NEXT_PUBLIC_POLLINATIONS_API_KEY || '';
-  const authParam = apiKey ? `&key=${apiKey}` : '';
-  
-  // Usamos flux como modelo padrão pois o turbo foi descontinuado/invalidado
-  const imageUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(cleanPrompt)}?width=1024&height=768&nologo=true&seed=${stableSeed}&model=flux${authParam}`;
+  // Usamos nossa rota de API interna para gerar a imagem de forma segura e estável
+  const imageUrl = `/api/generate-image?prompt=${encodeURIComponent(cleanPrompt)}&width=1024&height=768&nologo=true&seed=${stableSeed}&model=flux`;
   
   const handleRetry = () => {
     setError(false);
@@ -79,9 +74,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
             </div>
             <p className="text-xs font-bold text-slate-600 uppercase mb-2">Ops! A IA se distraiu...</p>
             <p className="text-[10px] text-slate-400 mb-6 max-w-xs">Não conseguimos gerar esta ilustração agora. O servidor pode estar ocupado ou requer autenticação.</p>
-            {!apiKey && (
-              <p className="text-[9px] text-amber-600 font-bold uppercase mb-4 bg-amber-50 px-2 py-1 rounded">Dica: Adicione uma chave API do Pollinations para maior estabilidade</p>
-            )}
+            <p className="text-[9px] text-amber-600 font-bold uppercase mb-4 bg-amber-50 px-2 py-1 rounded">DICA: VERIFIQUE SE A CHAVE API DO POLLINATIONS ESTÁ CONFIGURADA NA VERCEL</p>
             <button 
               onClick={handleRetry}
               className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 mb-4"
