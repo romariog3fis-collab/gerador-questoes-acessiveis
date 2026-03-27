@@ -195,44 +195,87 @@ export default function Home() {
     }
   }, []);
 
-  const handleDownloadDoc = () => {
+  const handleDownloadDoc = async () => {
     if (!resultRef.current) return;
-    const htmlContent = resultRef.current.innerHTML;
-    // Cabeçalho compatível com Word Mobile
-    const header = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' 
-            xmlns:w='urn:schemas-microsoft-com:office:word' 
-            xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>Questões Adaptadas</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; }
-          .prose { max-width: 100%; }
-        </style>
-      </head>
-      <body>
-    `;
-    const footer = "</body></html>";
-    const sourceHTML = header + htmlContent + footer;
-    
-    const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
+    setLoading(true);
 
-    let filename = 'questoes_adaptadas.doc';
-    if (file) {
-      const originalName = file.name;
-      const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-      filename = `${nameWithoutExt}_ADAPTADA.doc`;
+    try {
+      // Criar um clone do conteúdo para manipulação
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = resultRef.current.innerHTML;
+      
+      // Encontrar todas as imagens AI
+      const images = tempDiv.querySelectorAll('img');
+      const fetchAndConvertPromises = Array.from(images).map(async (img) => {
+        const originalSrc = img.getAttribute('src');
+        if (originalSrc && (originalSrc.startsWith('/api') || originalSrc.startsWith('http'))) {
+          try {
+            // Se for uma URL relativa, usar a origin atual
+            const fullUrl = originalSrc.startsWith('/') ? window.location.origin + originalSrc : originalSrc;
+            
+            const response = await fetch(fullUrl);
+            const blob = await response.blob();
+            
+            return new Promise<void>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                img.setAttribute('src', reader.result as string);
+                // Garantir dimensões para o Word
+                img.setAttribute('width', '600');
+                resolve();
+              };
+              reader.readAsDataURL(blob);
+            });
+          } catch (e) {
+            console.error('Erro ao converter imagem para Base64:', e);
+          }
+        }
+      });
+
+      await Promise.all(fetchAndConvertPromises);
+
+      const htmlContent = tempDiv.innerHTML;
+      // Cabeçalho compatível com Word Mobile
+      const header = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+              xmlns:w='urn:schemas-microsoft-com:office:word' 
+              xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Questões Adaptadas</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; }
+            .prose { max-width: 100%; }
+            img { display: block; margin: 20px 0; max-width: 100%; }
+          </style>
+        </head>
+        <body>
+      `;
+      const footer = "</body></html>";
+      const sourceHTML = header + htmlContent + footer;
+      
+      const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      let filename = 'questoes_adaptadas.doc';
+      if (file) {
+        const originalName = file.name;
+        const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+        filename = `${nameWithoutExt}_ADAPTADA.doc`;
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erro no download do DOC:', err);
+    } finally {
+      setLoading(false);
     }
-
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const handlePrint = () => {
