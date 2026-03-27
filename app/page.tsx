@@ -54,7 +54,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
           </div>
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ilustração Gerada por IA</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full border border-indigo-100 shadow-sm animate-pulse">
+        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full border border-indigo-100 shadow-sm animate-pulse no-print">
           <Sparkles size={12} />
           <span className="text-[10px] font-bold uppercase tracking-tighter">IA em Teste / Experimental</span>
         </div>
@@ -68,7 +68,7 @@ const ImagePrompt = ({ prompt }: { prompt: string }) => {
         )}
         
         {error ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 w-full h-full">
+          <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 w-full h-full no-print">
             <div className="bg-red-50 text-red-400 p-4 rounded-full mb-4">
               <X size={32} />
             </div>
@@ -140,12 +140,17 @@ export default function Home() {
   const [error, setError] = useState('');
   const [generationsCount, setGenerationsCount] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const MAX_GENERATIONS = 2;
+  const MAX_GENERATIONS = 1;
 
   const { user, profile, isAdmin, loading: authLoading, signIn, signOut } = useAuth();
   
   const userAccessType = profile?.accessType || null;
   const userExpiresAt = profile?.expiresAt ? (profile.expiresAt.toDate ? profile.expiresAt.toDate() : new Date(profile.expiresAt)) : null;
+  const accountCreatedAt = (profile as any)?.createdAt ? ((profile as any).createdAt.toDate ? (profile as any).createdAt.toDate() : new Date((profile as any).createdAt)) : null;
+  
+  // Período de teste de 30 dias para contas gratuitas
+  const isTrialExpired = !accountCreatedAt ? false : (new Date().getTime() - accountCreatedAt.getTime() > 30 * 24 * 60 * 60 * 1000);
+  
   const isFullVersion = profile?.role === 'admin' || userAccessType === 'unlimited' || (userAccessType === 'limited' && userExpiresAt && new Date() <= userExpiresAt);
   const isAuthReady = !authLoading;
 
@@ -285,9 +290,15 @@ export default function Home() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isFullVersion && generationsCount >= MAX_GENERATIONS) {
-      setError('Limite diário atingido. Você atingiu o limite de 2 gerações por dia na conta degustação. Faça login com uma conta Full para continuar.');
-      return;
+    if (!isFullVersion) {
+      if (isTrialExpired) {
+        setError('O seu período de teste de 30 dias expirou. Adquira uma licença Full para continuar gerando materiais.');
+        return;
+      }
+      if (generationsCount >= MAX_GENERATIONS) {
+        setError('Limite diário atingido. Você atingiu o limite de 1 geração por dia na conta degustação. Faça login com uma conta Full para acesso ilimitado.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -465,7 +476,7 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
     <>
       <style jsx global>{`
         @media print {
-          nav, aside, footer, .no-print, button, .lg\\:col-span-5 {
+          nav, aside, footer, .no-print, button, .lg\\:col-span-5, header:not(.content-header) {
             display: none !important;
           }
           .lg\\:col-span-7 {
@@ -486,7 +497,7 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
 
       <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-4 md:p-8 lg:p-12">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-12 text-center max-w-3xl mx-auto">
+        <header className="mb-12 text-center max-w-3xl mx-auto no-print">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -741,7 +752,7 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
                     Conta Degustação: <span className={generationsCount >= MAX_GENERATIONS ? 'text-red-500' : 'text-blue-600'}>{generationsCount}</span> de {MAX_GENERATIONS} gerações diárias.
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">
-                    Acesso limitado para testes
+                    Período de teste: 30 dias
                   </p>
                 </div>
               )}
@@ -804,7 +815,7 @@ ${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().incl
             transition={{ duration: 0.5, delay: 0.4 }}
             className="lg:col-span-7 bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col h-full min-h-[700px]"
           >
-            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
+            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 no-print">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-3">
                 <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-xl">
                   <Send size={22} className="rotate-45" />

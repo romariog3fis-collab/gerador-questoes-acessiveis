@@ -421,7 +421,7 @@ const AdminPanel = () => {
       let expiresAt = null;
       if (accessType === 'limited') {
         const date = new Date();
-        date.setDate(date.getDate() + 2);
+        date.setDate(date.getDate() + 30);
         expiresAt = date;
       }
       await updateDoc(doc(db, 'users', uid), { 
@@ -593,8 +593,8 @@ const AdminPanel = () => {
                         className="text-xs bg-slate-100 border-none rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-blue-500 font-bold text-slate-600 cursor-pointer appearance-none"
                         disabled={u.email === "romariog3.fis@gmail.com"}
                       >
-                        <option value="none">Gratuito</option>
-                        <option value="limited">Premium (2d)</option>
+                        <option value="none">Gratuito (30d)</option>
+                        <option value="limited">Premium (30d)</option>
                         <option value="unlimited">Full (Ilimitado)</option>
                       </select>
                       {u.accessType === 'limited' && u.expiresAt && (
