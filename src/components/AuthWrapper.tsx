@@ -421,7 +421,7 @@ const AdminPanel = () => {
       let expiresAt = null;
       if (accessType === 'limited') {
         const date = new Date();
-        date.setDate(date.getDate() + 30);
+        date.setDate(date.getDate() + 2);
         expiresAt = date;
       }
       await updateDoc(doc(db, 'users', uid), { 
@@ -594,7 +594,7 @@ const AdminPanel = () => {
                         disabled={u.email === "romariog3.fis@gmail.com"}
                       >
                         <option value="none">Gratuito (30d)</option>
-                        <option value="limited">Premium (30d)</option>
+                        <option value="limited">Premium (2d)</option>
                         <option value="unlimited">Full (Ilimitado)</option>
                       </select>
                       {u.accessType === 'limited' && u.expiresAt && (

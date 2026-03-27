@@ -140,7 +140,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [generationsCount, setGenerationsCount] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const MAX_GENERATIONS = 1;
+  const MAX_GENERATIONS = 2;
 
   const { user, profile, isAdmin, loading: authLoading, signIn, signOut } = useAuth();
   
@@ -296,7 +296,7 @@ export default function Home() {
         return;
       }
       if (generationsCount >= MAX_GENERATIONS) {
-        setError('Limite diário atingido. Você atingiu o limite de 1 geração por dia na conta degustação. Faça login com uma conta Full para acesso ilimitado.');
+        setError('Limite diário atingido. Você atingiu o limite de 2 gerações por dia na conta degustação. Faça login com uma conta Full para acesso ilimitado.');
         return;
       }
     }
