@@ -16,6 +16,7 @@ interface UserProfile {
   status: 'pending' | 'approved' | 'rejected';
   accessType?: 'unlimited' | 'limited';
   expiresAt?: any;
+  currentSessionId?: string;
 }
 
 interface AuthContextType {
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionConflict, setSessionConflict] = useState(false);
 
   const ADMIN_EMAIL = "romariog3.fis@gmail.com";
 
@@ -57,9 +59,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userDocRef = doc(db, 'users', currentUser.uid);
         
         // Listen for profile changes
-        unsubProfile = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
+            const data = docSnap.data() as UserProfile;
+            setProfile(data);
+
+            // Verificação de Sessão Única
+            const localSessionId = localStorage.getItem('ga_session_id');
+            
+            if (!localSessionId) {
+              // Primeiro acesso neste dispositivo ou LocalStorage limpo
+              const newSessionId = crypto.randomUUID();
+              localStorage.setItem('ga_session_id', newSessionId);
+              updateDoc(userDocRef, { currentSessionId: newSessionId });
+            } else if (data.currentSessionId && data.currentSessionId !== localSessionId) {
+              // Conflito detectado: Outro dispositivo assumiu a sessão
+              setSessionConflict(true);
+            } else if (!data.currentSessionId) {
+              // Caso o campo não exista no banco (migração), associa o atual
+              updateDoc(userDocRef, { currentSessionId: localSessionId });
+            }
           } else {
             // Check if email is pre-authorized
             const preAuthQuery = query(
@@ -136,6 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true);
     try {
+      localStorage.removeItem('ga_session_id');
       await logout();
     } catch (error) {
       console.error(error);
@@ -151,13 +170,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin: profile?.role === 'admin',
     signIn,
     signOut,
+    sessionConflict,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile, loading, signIn, signOut } = useAuth();
+  const { user, profile, loading, signIn, signOut, sessionConflict } = useAuth() as any;
   const [showAdmin, setShowAdmin] = useState(false);
 
   if (loading) {
@@ -165,6 +185,40 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
         <p className="text-gray-600 font-medium">Verificando acesso...</p>
+      </div>
+    );
+  }
+
+  if (sessionConflict) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4 font-sans no-print">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10 text-center border border-red-100">
+          <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-8 animate-bounce">
+            <Users size={32} className="text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">Sessão Encerrada</h1>
+          <p className="text-slate-500 mb-8 text-sm leading-relaxed">
+            Sua conta foi acessada em outro dispositivo. Para continuar usando neste aparelho, você precisa entrar novamente.
+          </p>
+          <div className="bg-amber-50 p-4 rounded-xl mb-8 flex items-start gap-3 text-left border border-amber-100">
+            <Clock size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-800 font-medium leading-relaxed uppercase tracking-tighter">
+              Por motivos de segurança e licenciamento, permitimos apenas um acesso ativo por vez.
+            </p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg active:scale-95 mb-4"
+          >
+            Usar neste dispositivo
+          </button>
+          <button
+            onClick={signOut}
+            className="text-slate-400 hover:text-slate-600 transition-colors text-sm font-medium"
+          >
+            Sair da conta
+          </button>
+        </div>
       </div>
     );
   }
