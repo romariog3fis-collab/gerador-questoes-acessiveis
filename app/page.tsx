@@ -10,11 +10,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../src/components/AuthWrapper';
 import { db, handleFirestoreError, OperationType } from '../src/lib/firebase';
 import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
-import SkeletonLoader from '../src/components/SkeletonLoader';
-import QuestionCard from '../src/components/QuestionCard';
-import AdaptationForm from '../src/components/AdaptationForm';
-import AdaptationHistory from '../src/components/AdaptationHistory';
-import { HistoryItem, StructuredResult, Question } from '../src/types';
+import SkeletonLoader from '@/src/components/SkeletonLoader';
+import QuestionCard from '@/src/components/QuestionCard';
+import AdaptationForm from '@/src/components/AdaptationForm';
+import AdaptationHistory from '@/src/components/AdaptationHistory';
+import { HistoryItem, StructuredResult, Question } from '@/src/types';
 
 export default function Home() {
   // Estados do Formulário
@@ -44,12 +44,14 @@ export default function Home() {
   const MAX_GENERATIONS = 5; // Aumentado para o dev
   
   const resultRef = useRef<HTMLDivElement>(null);
-  const { user, profile, loading: authLoading, signOut, userAccessType, userExpiresAt, accountCreatedAt } = useAuth() as any;
+  const { user, profile, loading: authLoading, signOut } = useAuth() as any;
+  const userAccessType = profile?.accessType;
+  const userExpiresAt = profile?.expiresAt;
 
   const isFullVersion = profile?.role === 'admin' || userAccessType === 'unlimited' || (userAccessType === 'limited' && userExpiresAt && new Date() <= userExpiresAt);
 
   // Inicialização do Gemini
-  const genAI = new GoogleGenAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
+  const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
   const ai = genAI.getGenerativeModel({ 
     model: 'gemini-1.5-pro',
     generationConfig: {
