@@ -25,10 +25,6 @@ export async function POST(req: Request) {
     }
 
     const genAI = new (GoogleGenAI as any)(apiKey);
-    const model = (genAI as any).getGenerativeModel({ 
-      model: 'gemini-1.5-pro',
-      generationConfig: { responseMimeType: "application/json" }
-    });
 
     if (isRefinement) {
       const prompt = `
@@ -36,10 +32,15 @@ export async function POST(req: Request) {
         MATERIAL ORIGINAL DA QUESTÃO: ${JSON.stringify(questionToRefine)}
         COMANDO DE REFINAMENTO: ${refinementAction}
         
-        RETORNE APENAS O OBJETO JSON DA QUESTÃO REFINADA, SEGUINDO O MESMO SCHEMA (apenas o objeto da questão, não a lista completa).
+        RETORNE APENAS O OBJETO JSON DA QUESTÃO REFINADA (apenas o objeto {}).
       `;
-      const result = await model.generateContent(prompt);
-      const cleanJson = result.response.text().replace(/```json\n?|```/g, '').trim();
+      const result = await genAI.models.generateContent({
+        model: 'gemini-1.5-pro',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: { responseMimeType: "application/json" }
+      });
+      const responseText = result.candidates[0].content.parts[0].text;
+      const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
       return NextResponse.json(JSON.parse(cleanJson));
     }
 
@@ -91,12 +92,16 @@ export async function POST(req: Request) {
     }
     parts.push({ text: `CONTEÚDO/CONTEXTO: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
 
-    const result = await model.generateContent({
+    const result = await genAI.models.generateContent({
+      model: 'gemini-1.5-pro',
       contents: [{ role: 'user', parts }],
-      systemInstruction: { parts: [{ text: systemInstruction }] } as any,
+      config: { 
+        systemInstruction,
+        responseMimeType: "application/json" 
+      }
     });
 
-    const responseText = result.response.text();
+    const responseText = result.candidates[0].content.parts[0].text;
     const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
     
     return NextResponse.json(JSON.parse(cleanJson));
