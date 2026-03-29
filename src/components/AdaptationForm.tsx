@@ -21,7 +21,7 @@ interface AdaptationFormProps {
   gerarImagensIA: boolean;
   setGerarImagensIA: (val: boolean) => void;
   adaptacoes: string;
-  setAdaptacoes: (val: string) => void;
+  setAdaptacoes: React.Dispatch<React.SetStateAction<string>>;
   estilosAdaptacao: {
     destacarChave: boolean;
     dividirBlocos: boolean;

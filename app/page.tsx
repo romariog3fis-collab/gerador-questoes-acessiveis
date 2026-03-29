@@ -52,7 +52,7 @@ export default function Home() {
 
   // Inicialização do Gemini
   const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
-  const ai = genAI.getGenerativeModel({ 
+  const ai = (genAI as any).getGenerativeModel({ 
     model: 'gemini-1.5-pro',
     generationConfig: {
       responseMimeType: "application/json",

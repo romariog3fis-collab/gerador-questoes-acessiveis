@@ -39,7 +39,7 @@ const AdaptationHistory: React.FC<AdaptationHistoryProps> = ({ history, onSelect
         <motion.div 
           key={item.id} 
           whileHover={{ x: 5 }}
-          whileActive={{ scale: 0.98 }}
+          whileTap={{ scale: 0.98 }}
           className="p-5 bg-white rounded-[2rem] border border-slate-100 hover:border-blue-200 hover:shadow-xl transition-all cursor-pointer group shadow-sm flex items-center gap-4" 
           onClick={() => onSelect(item)}
         >
