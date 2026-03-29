@@ -132,43 +132,45 @@ export default function Home() {
         }
       `;
 
-      let parts: any[] = [];
+      let fileBase64 = null;
+      let fileType = null;
       if (file) {
-        const fileExtension = file.name.split('.').pop()?.toLowerCase();
-        if (fileExtension === 'docx') {
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          parts.push({ text: `CONTEÚDO DO ARQUIVO:\n${result.value}` });
-        } else if (fileExtension === 'txt') {
-          parts.push({ text: `CONTEÚDO DO ARQUIVO:\n${await file.text()}` });
-        } else {
-          const base64Data = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(',')[1]);
-            reader.readAsDataURL(file);
-          });
-          parts.push({ inlineData: { data: base64Data, mimeType: file.type || 'application/pdf' } });
-        }
+        fileType = file.type;
+        fileBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(file);
+        });
       }
-      parts.push({ text: `CONTEXTO ADICIONAL: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}` });
-      parts.push({ text: `CAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
 
-      const result = await ai.generateContent({
-        contents: [{ role: 'user', parts }],
-        systemInstruction: { parts: [{ text: systemInstruction }] } as any,
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          material,
+          adaptacoes,
+          ano,
+          etapaEnsino,
+          estilosAdaptacao,
+          caixaAlta,
+          gerarImagensIA,
+          fileBase64,
+          fileType
+        })
       });
 
-      const responseText = result.response.text();
-      // Limpeza de possíveis markdown wrappers se houver
-      const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
-      const parsed = JSON.parse(cleanJson) as StructuredResult;
-      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha na resposta do servidor.');
+      }
+
+      const parsed = await response.json() as StructuredResult;
       setResultado(parsed);
       
       // Salvar no Histórico
       if (user) {
         await addDoc(collection(db, `users/${user.uid}/generations`), {
-          content: responseText,
+          content: JSON.stringify(parsed),
           adaptationType: adaptacoes.split('\n')[0].replace('- ', '') || 'Geral',
           createdAt: serverTimestamp(),
           metadata: { ano, etapaEnsino }
@@ -190,39 +192,38 @@ export default function Home() {
     setRefiningId(id);
     
     try {
-      const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
-      const ai = (genAI as any).getGenerativeModel({ 
-        model: 'gemini-1.5-pro',
-        generationConfig: { responseMimeType: "application/json" }
-      });
-
       const question = resultado.questions.find(q => q.id === id);
       if (!question) return;
 
       const actionPrompt = {
-        simplify: "Simplifique o nível de dificuldade desta questão (desça um nível na Taxonomia de Bloom). Use linguagem ainda mais direta e reduza a carga cognitiva.",
-        accessible: "Torne esta questão mais acessível (AEE). Foque em reduzir barreiras de compreensão e forneça mais suporte visual/glossário se necessário.",
-        change_type: `Mude o formato desta questão de ${question.type === 'multiple_choice' ? 'Múltipla Escolha para Discursiva' : 'Discursiva para Múltipla Escolha'}.`
+        simplify: "Simplifique o nível de dificuldade desta questão (desça um nível na Taxonomia de Bloom). Use linguagem ainda mais direta e reduza a carga cognitiva. Mantenha o id original.",
+        accessible: "Torne esta questão mais acessível (AEE). Foque em reduzir barreiras de compreensão e forneça mais suporte visual/glossário se necessário. Mantenha o id original.",
+        change_type: `Mude o formato desta questão de ${question.type === 'multiple_choice' ? 'Múltipla Escolha para Discursiva' : 'Discursiva para Múltipla Escolha'}. Mantenha o id original.`
       }[action];
 
-      const prompt = `
-        VOCÊ ESTÁ REFINANDO UMA ÚNICA QUESTÃO.
-        MATERIAL ORIGINAL DA QUESTÃO: ${JSON.stringify(question)}
-        COMANDO DE REFINAMENTO: ${actionPrompt}
-        
-        RETORNE APENAS O OBJETO JSON DA QUESTÃO REFINADA, SEGUINDO O MESMO SCHEMA (apenas o objeto da questão, não a lista completa).
-      `;
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isRefinement: true,
+          refinementAction: actionPrompt,
+          questionToRefine: question
+        })
+      });
 
-      const result = await ai.generateContent(prompt);
-      const refinedQuestion = JSON.parse(result.response.text()) as Question;
+      if (!response.ok) {
+        throw new Error('Falha ao refinar no servidor.');
+      }
+
+      const refinedQuestion = await response.json() as Question;
 
       setResultado({
         ...resultado,
         questions: resultado.questions.map(q => q.id === id ? refinedQuestion : q)
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Erro ao refinar a questão.');
+      setError(err?.message || 'Erro ao refinar a questão.');
     } finally {
       setRefiningId(null);
     }
