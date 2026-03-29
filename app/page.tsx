@@ -50,14 +50,7 @@ export default function Home() {
 
   const isFullVersion = profile?.role === 'admin' || userAccessType === 'unlimited' || (userAccessType === 'limited' && userExpiresAt && new Date() <= userExpiresAt);
 
-  // Inicialização do Gemini
-  const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
-  const ai = (genAI as any).getGenerativeModel({ 
-    model: 'gemini-1.5-pro',
-    generationConfig: {
-      responseMimeType: "application/json",
-    }
-  });
+  // Removida inicialização global para evitar erro de API Key no client side puro
 
   const fetchHistory = useCallback(async () => {
     if (!user) return;
@@ -87,6 +80,12 @@ export default function Home() {
     setResultado(null);
 
     try {
+      const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
+      const ai = (genAI as any).getGenerativeModel({ 
+        model: 'gemini-1.5-pro',
+        generationConfig: { responseMimeType: "application/json" }
+      });
+
       const systemInstruction = `
         Você é um especialista em educação inclusiva e design instrucional baseada na Taxonomia de Bloom.
         Sua tarefa é ler um material de avaliação e adaptá-lo para alunos com Necessidades Educacionais Especiais (NEE).
@@ -187,6 +186,12 @@ export default function Home() {
     setRefiningId(id);
     
     try {
+      const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
+      const ai = (genAI as any).getGenerativeModel({ 
+        model: 'gemini-1.5-pro',
+        generationConfig: { responseMimeType: "application/json" }
+      });
+
       const question = resultado.questions.find(q => q.id === id);
       if (!question) return;
 
