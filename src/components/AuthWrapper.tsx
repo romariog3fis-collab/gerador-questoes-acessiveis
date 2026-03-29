@@ -26,6 +26,7 @@ interface AuthContextType {
   isAdmin: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  setSessionConflict: (val: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -172,13 +173,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signOut,
     sessionConflict,
+    setSessionConflict,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile, loading, signIn, signOut, sessionConflict } = useAuth() as any;
+  const { user, profile, loading, signIn, signOut, sessionConflict, setSessionConflict } = useAuth() as any;
   const [showAdmin, setShowAdmin] = useState(false);
 
   if (loading) {
@@ -191,6 +193,19 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   if (sessionConflict) {
+    const reclaimSession = async () => {
+      if (!user) return;
+      const newSessionId = crypto.randomUUID();
+      localStorage.setItem('ga_session_id', newSessionId);
+      const userDocRef = doc(db, 'users', user.uid);
+      try {
+        await updateDoc(userDocRef, { currentSessionId: newSessionId });
+        setSessionConflict(false);
+      } catch (error) {
+        console.error("Erro ao retomar sessão:", error);
+      }
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4 font-sans no-print">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10 text-center border border-red-100">
@@ -199,19 +214,19 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
           </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">Sessão Encerrada</h1>
           <p className="text-slate-500 mb-8 text-sm leading-relaxed">
-            Sua conta foi acessada em outro dispositivo. Para continuar usando neste aparelho, você precisa entrar novamente.
+            Sua conta foi acessada em outro dispositivo. Para continuar usando neste aparelho, você precisa assumir o controle da sessão.
           </p>
           <div className="bg-amber-50 p-4 rounded-xl mb-8 flex items-start gap-3 text-left border border-amber-100">
             <Clock size={18} className="text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[11px] text-amber-800 font-medium leading-relaxed uppercase tracking-tighter">
-              Por motivos de segurança e licenciamento, permitimos apenas um acesso ativo por vez.
+              Ao clicar abaixo, o outro dispositivo será desconectado e este passará a ser o acesso ativo.
             </p>
           </div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={reclaimSession}
             className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg active:scale-95 mb-4"
           >
-            Usar neste dispositivo
+            Usar neste dispositivo (Retomar Controle)
           </button>
           <button
             onClick={signOut}
