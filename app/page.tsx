@@ -2,167 +2,66 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import mammoth from 'mammoth';
-import 'katex/dist/katex.min.css';
-import { Loader2, Send, FileText, UploadCloud, X, Download, History, Calendar, Copy, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { Loader2, FileText, Send, Download, Copy, Share2, Sparkles, X, History, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+// Componentes Refatorados
 import { useAuth } from '../src/components/AuthWrapper';
 import { db, handleFirestoreError, OperationType } from '../src/lib/firebase';
-import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { motion } from 'motion/react';
-
-interface HistoryItem {
-  id: string;
-  adaptationType: string;
-  createdAt: Timestamp;
-  content: string;
-}
-
-const ImagePrompt = ({ prompt }: { prompt: string }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  
-  // Usar uma semente estável robusta baseada no prompt + retryCount
-  const stableSeed = Math.floor(Math.abs(prompt.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)) % 1000000) + retryCount;
-  
-  // Sanitização rigorosa do prompt para evitar caracteres que quebram a URL ou o modelo
-  const cleanPrompt = prompt
-    .replace(/^[*_#\-+>`"\s\[\]]+|[*_#\-+>`"\s\[\]]+$/g, '') // Remove artefatos de formatação nas extremidades
-    .replace(/[.;:!?,]$/, '') // Remove pontuação final redundante
-    .substring(0, 450)
-    .trim();
-
-  // Usamos nossa rota de API interna para gerar a imagem de forma segura e estável
-  const imageUrl = `/api/generate-image?prompt=${encodeURIComponent(cleanPrompt)}&width=1024&height=768&nologo=true&seed=${stableSeed}&model=flux`;
-  
-  const handleRetry = () => {
-    setError(false);
-    setLoading(true);
-    setRetryCount(prev => prev + 1);
-  };
-
-  return (
-    <div className="my-8 rounded-3xl overflow-hidden border border-slate-100 shadow-xl bg-slate-50 group transition-all hover:shadow-2xl hover:border-blue-100">
-      <div className="p-4 bg-white border-b border-slate-50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
-            <ImageIcon size={18} />
-          </div>
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ilustração Gerada por IA</span>
-        </div>
-        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full border border-indigo-100 shadow-sm animate-pulse no-print">
-          <Sparkles size={12} />
-          <span className="text-[10px] font-bold uppercase tracking-tighter">IA em Teste / Experimental</span>
-        </div>
-      </div>
-      <div className="relative aspect-video bg-slate-100 overflow-hidden flex items-center justify-center">
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-10 transition-opacity">
-            <Loader2 className="animate-spin text-indigo-600 mb-2" size={32} />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Criando Imagem...</span>
-          </div>
-        )}
-        
-        {error ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 w-full h-full no-print">
-            <div className="bg-red-50 text-red-400 p-4 rounded-full mb-4">
-              <X size={32} />
-            </div>
-            <p className="text-xs font-bold text-slate-600 uppercase mb-2">Ops! A IA se distraiu...</p>
-            <p className="text-[10px] text-slate-400 mb-6 max-w-xs">Não conseguimos gerar esta ilustração agora. O servidor pode estar ocupado ou requer autenticação.</p>
-            <p className="text-[9px] text-amber-600 font-bold uppercase mb-4 bg-amber-50 px-2 py-1 rounded">DICA: VERIFIQUE SE A CHAVE API DO POLLINATIONS ESTÁ CONFIGURADA NA VERCEL</p>
-            <button 
-              onClick={handleRetry}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 mb-4"
-            >
-              <History size={14} />
-              TENTAR NOVAMENTE
-            </button>
-            <a 
-              href={imageUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-[10px] text-indigo-500 hover:underline font-medium"
-            >
-              Ver imagem em nova aba (Diagnóstico)
-            </a>
-          </div>
-        ) : (
-          <img 
-            key={`${imageUrl}-${retryCount}`}
-            src={imageUrl} 
-            alt={prompt}
-            className={`w-full h-full object-cover transition-all duration-1000 ${loading ? 'opacity-0 scale-110 blur-sm' : 'opacity-100 scale-100 blur-0'} group-hover:scale-105`}
-            onLoad={() => setLoading(false)}
-            onError={(e) => { 
-                console.error("Erro no Pollinations:", imageUrl);
-                // Se falhar o flux, podemos tentar o modelo padrão (sem model parameter) no próximo retry se quisermos
-                setLoading(false); 
-                setError(true); 
-            }}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            crossOrigin="anonymous"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none opacity-40" />
-      </div>
-      <div className="p-4 bg-white border-t border-slate-50">
-        <div className="flex items-start gap-2">
-          <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0" />
-          <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all">
-            "{cleanPrompt}"
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
+import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import SkeletonLoader from '../src/components/SkeletonLoader';
+import QuestionCard from '../src/components/QuestionCard';
+import AdaptationForm from '../src/components/AdaptationForm';
+import AdaptationHistory from '../src/components/AdaptationHistory';
+import { HistoryItem, StructuredResult, Question } from '../src/types';
 
 export default function Home() {
+  // Estados do Formulário
   const [material, setMaterial] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const resultRef = useRef<HTMLDivElement>(null);
   const [ano, setAno] = useState('');
   const [etapaEnsino, setEtapaEnsino] = useState('');
   const [adaptacoes, setAdaptacoes] = useState('');
   const [caixaAlta, setCaixaAlta] = useState(false);
   const [incluirDescricaoVisual, setIncluirDescricaoVisual] = useState(false);
   const [gerarImagensIA, setGerarImagensIA] = useState(false);
-  
-  const [resultado, setResultado] = useState('');
+  const [estilosAdaptacao, setEstilosAdaptacao] = useState({
+    destacarChave: false,
+    dividirBlocos: false,
+    listasMarcadores: false,
+    titulosClaros: false,
+    simplificarLinguagem: true,
+  });
+
+  // Estados de Controle e Resultado
+  const [resultado, setResultado] = useState<StructuredResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refiningId, setRefiningId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [generationsCount, setGenerationsCount] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const MAX_GENERATIONS = 2;
+  const MAX_GENERATIONS = 5; // Aumentado para o dev
+  
+  const resultRef = useRef<HTMLDivElement>(null);
+  const { user, profile, loading: authLoading, signOut, userAccessType, userExpiresAt, accountCreatedAt } = useAuth() as any;
 
-  const { user, profile, isAdmin, loading: authLoading, signIn, signOut } = useAuth();
-  
-  const userAccessType = profile?.accessType || null;
-  const userExpiresAt = profile?.expiresAt ? (profile.expiresAt.toDate ? profile.expiresAt.toDate() : new Date(profile.expiresAt)) : null;
-  const accountCreatedAt = (profile as any)?.createdAt ? ((profile as any).createdAt.toDate ? (profile as any).createdAt.toDate() : new Date((profile as any).createdAt)) : null;
-  
-  // Período de teste de 30 dias para contas gratuitas
-  const isTrialExpired = !accountCreatedAt ? false : (new Date().getTime() - accountCreatedAt.getTime() > 30 * 24 * 60 * 60 * 1000);
-  
   const isFullVersion = profile?.role === 'admin' || userAccessType === 'unlimited' || (userAccessType === 'limited' && userExpiresAt && new Date() <= userExpiresAt);
-  const isAuthReady = !authLoading;
+
+  // Inicialização do Gemini
+  const genAI = new GoogleGenAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
+  const ai = genAI.getGenerativeModel({ 
+    model: 'gemini-1.5-pro',
+    generationConfig: {
+      responseMimeType: "application/json",
+    }
+  });
 
   const fetchHistory = useCallback(async () => {
     if (!user) return;
     const path = `users/${user.uid}/generations`;
     try {
-      const q = query(
-        collection(db, path),
-        orderBy('createdAt', 'desc'),
-        limit(5)
-      );
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'), limit(10));
       const querySnapshot = await getDocs(q);
       const items: HistoryItem[] = [];
       querySnapshot.forEach((doc) => {
@@ -170,791 +69,366 @@ export default function Home() {
       });
       setHistory(items);
     } catch (err) {
-      handleFirestoreError(err, OperationType.LIST, path);
+      console.error(err);
     }
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      fetchHistory();
-    }
+    if (user) fetchHistory();
   }, [user, fetchHistory]);
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const storedData = localStorage.getItem('gerador_questoes_usage');
-    if (storedData) {
-      try {
-        const { date, count } = JSON.parse(storedData);
-        if (date === today) {
-          setGenerationsCount(count);
-        } else {
-          localStorage.setItem('gerador_questoes_usage', JSON.stringify({ date: today, count: 0 }));
-          setGenerationsCount(0);
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError('');
+    setResultado(null);
+
+    try {
+      const systemInstruction = `
+        Você é um especialista em educação inclusiva e design instrucional baseada na Taxonomia de Bloom.
+        Sua tarefa é ler um material de avaliação e adaptá-lo para alunos com Necessidades Educacionais Especiais (NEE).
+
+        ESTILO DE ADAPTAÇÃO SOLICITADO:
+        ${estilosAdaptacao.destacarChave ? '- Destaque informações-chave em NEGTRITO.' : ''}
+        ${estilosAdaptacao.dividirBlocos ? '- Divida o texto em blocos pequenos e espaçados.' : ''}
+        ${estilosAdaptacao.listasMarcadores ? '- Transforme parágrafos densos em listas com marcadores.' : ''}
+        ${estilosAdaptacao.titulosClaros ? '- Use títulos e subtítulos claros e hierárquicos.' : ''}
+        ${estilosAdaptacao.simplificarLinguagem ? '- Use LINGUAGEM SIMPLES (evite termos complexos ou técnicos desnecessários).' : ''}
+
+        REGRA DE BLOOM (RÉGUA DE DIFICULDADE):
+        - Para ${etapaEnsino}, use prioritariamente os níveis: Lembrar, Entender e Aplicar.
+        - Classifique cada questão de acordo com a Taxonomia de Bloom original.
+
+        REGRAS DE FORMATAÇÃO:
+        - MANTENHA A NUMERAÇÃO ORIGINAL DAS QUESTÕES. Não reinicie a conta do 1 se o original começar em outro número.
+        - Se "Caixa Alta" estiver ON: Todo o conteúdo textual deve ser em MAIÚSCULAS.
+        - Se "Gerar Ilustrações" estiver ON: Inclua um imagePrompt técnico em inglês, focado em clipart, fundo branco, estilo vetor flat.
+
+        ESPECIFICAÇÕES DO FORMATO JSON (OBRIGATÓRIO):
+        Retorne um objeto JSON seguindo exatamente esta estrutura:
+        {
+          "title": "Título da Avaliação",
+          "studentInfo": true,
+          "overallAEEInfo": "Resumo pedagógico da adaptação aplicada...",
+          "questions": [
+            {
+              "id": "string único",
+              "originalNumber": "string ou número",
+              "bloomLevel": "Lembrar|Entender|Aplicar|Analisar|Avaliar|Criar",
+              "content": "Enunciado em Markdown...",
+              "type": "multiple_choice | essay",
+              "answer": "Gabarito",
+              "justification": "Justificativa pedagógica",
+              "imagePrompt": "Clipart vector illustration of [subject]...",
+              "glossary": [{"word": "...", "meaning": "..."}],
+              "steps": ["passo 1", "passo 2"]
+            }
+          ]
         }
-      } catch (e) {
-        localStorage.setItem('gerador_questoes_usage', JSON.stringify({ date: today, count: 0 }));
+      `;
+
+      let parts: any[] = [];
+      if (file) {
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+        if (fileExtension === 'docx') {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          parts.push({ text: `CONTEÚDO DO ARQUIVO:\n${result.value}` });
+        } else if (fileExtension === 'txt') {
+          parts.push({ text: `CONTEÚDO DO ARQUIVO:\n${await file.text()}` });
+        } else {
+          const base64Data = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.readAsDataURL(file);
+          });
+          parts.push({ inlineData: { data: base64Data, mimeType: file.type || 'application/pdf' } });
+        }
       }
-    } else {
-      localStorage.setItem('gerador_questoes_usage', JSON.stringify({ date: today, count: 0 }));
+      parts.push({ text: `CONTEXTO ADICIONAL: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}` });
+      parts.push({ text: `CAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
+
+      const result = await ai.generateContent({
+        contents: [{ role: 'user', parts }],
+        systemInstruction: { parts: [{ text: systemInstruction }] } as any,
+      });
+
+      const responseText = result.response.text();
+      // Limpeza de possíveis markdown wrappers se houver
+      const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
+      const parsed = JSON.parse(cleanJson) as StructuredResult;
+      
+      setResultado(parsed);
+      
+      // Salvar no Histórico
+      if (user) {
+        await addDoc(collection(db, `users/${user.uid}/generations`), {
+          content: responseText,
+          adaptationType: adaptacoes.split('\n')[0].replace('- ', '') || 'Geral',
+          createdAt: serverTimestamp(),
+          metadata: { ano, etapaEnsino }
+        });
+        fetchHistory();
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      setError('Falha ao processar material. Verifique o formato do arquivo ou tente novamente.');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
+
+  const refineQuestion = async (id: string, action: 'simplify' | 'accessible' | 'change_type') => {
+    if (refiningId || !resultado) return;
+    setRefiningId(id);
+    
+    try {
+      const question = resultado.questions.find(q => q.id === id);
+      if (!question) return;
+
+      const actionPrompt = {
+        simplify: "Simplifique o nível de dificuldade desta questão (desça um nível na Taxonomia de Bloom). Use linguagem ainda mais direta e reduza a carga cognitiva.",
+        accessible: "Torne esta questão mais acessível (AEE). Foque em reduzir barreiras de compreensão e forneça mais suporte visual/glossário se necessário.",
+        change_type: `Mude o formato desta questão de ${question.type === 'multiple_choice' ? 'Múltipla Escolha para Discursiva' : 'Discursiva para Múltipla Escolha'}.`
+      }[action];
+
+      const prompt = `
+        VOCÊ ESTÁ REFINANDO UMA ÚNICA QUESTÃO.
+        MATERIAL ORIGINAL DA QUESTÃO: ${JSON.stringify(question)}
+        COMANDO DE REFINAMENTO: ${actionPrompt}
+        
+        RETORNE APENAS O OBJETO JSON DA QUESTÃO REFINADA, SEGUINDO O MESMO SCHEMA (apenas o objeto da questão, não a lista completa).
+      `;
+
+      const result = await ai.generateContent(prompt);
+      const refinedQuestion = JSON.parse(result.response.text()) as Question;
+
+      setResultado({
+        ...resultado,
+        questions: resultado.questions.map(q => q.id === id ? refinedQuestion : q)
+      });
+    } catch (err) {
+      console.error(err);
+      setError('Erro ao refinar a questão.');
+    } finally {
+      setRefiningId(null);
+    }
+  };
 
   const handleDownloadDoc = async () => {
-    if (!resultRef.current) return;
+    if (!resultado) return;
     setLoading(true);
 
     try {
-      // Criar um clone do conteúdo para manipulação
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = resultRef.current.innerHTML;
-      
-      // Encontrar todas as imagens AI
-      const images = tempDiv.querySelectorAll('img');
-      const fetchAndConvertPromises = Array.from(images).map(async (img) => {
-        const originalSrc = img.getAttribute('src');
-        if (originalSrc && (originalSrc.startsWith('/api') || originalSrc.startsWith('http'))) {
-          try {
-            // Se for uma URL relativa, usar a origin atual
-            const fullUrl = originalSrc.startsWith('/') ? window.location.origin + originalSrc : originalSrc;
-            
-            const response = await fetch(fullUrl);
-            const blob = await response.blob();
-            
-            return new Promise<void>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                img.setAttribute('src', reader.result as string);
-                // Garantir dimensões para o Word
-                img.setAttribute('width', '600');
-                resolve();
-              };
-              reader.readAsDataURL(blob);
-            });
-          } catch (e) {
-            console.error('Erro ao converter imagem para Base64:', e);
-          }
-        }
+      // Gerar HTML limpo para o Word
+      let docHtml = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h1 style="text-align: center; color: #1e293b;">${resultado.title}</h1>
+          ${resultado.studentInfo ? '<div style="border: 1px solid #cbd5e1; padding: 10px; margin-bottom: 20px;">Nome: ____________________________________ Data: ___/___/___</div>' : ''}
+          <p style="color: #64748b; font-size: 10px; text-transform: uppercase;">${resultado.overallAEEInfo || ''}</p>
+          <hr />
+      `;
+
+      resultado.questions.forEach(q => {
+        docHtml += `
+          <div style="margin-bottom: 30px; page-break-inside: avoid;">
+            <h3 style="color: #0f172a;">Questão ${q.originalNumber}</h3>
+            <div style="color: #334155;">${q.content.replace(/\n/g, '<br>')}</div>
+            ${q.imagePrompt ? '<div style="margin: 20px 0; font-style: italic; color: #94a3b8;">[Espaço para Imagem: ' + q.imagePrompt + ']</div>' : ''}
+            <div style="margin-top: 15px; background-color: #f8fafc; padding: 10px; font-size: 11px;">
+              <strong>Gabarito:</strong> ${q.answer}<br>
+              <strong>Justificativa:</strong> ${q.justification}
+            </div>
+          </div>
+        `;
       });
 
-      await Promise.all(fetchAndConvertPromises);
+      docHtml += '</div>';
 
-      const htmlContent = tempDiv.innerHTML;
-      // Cabeçalho compatível com Word Mobile
       const header = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' 
               xmlns:w='urn:schemas-microsoft-com:office:word' 
               xmlns='http://www.w3.org/TR/REC-html40'>
-        <head>
-          <meta charset='utf-8'>
-          <title>Questões Adaptadas</title>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; }
-            .prose { max-width: 100%; }
-            img { display: block; margin: 20px 0; max-width: 100%; }
-          </style>
-        </head>
-        <body>
+        <head><meta charset='utf-8'><title>Avaliação Adaptada</title></head><body>
       `;
       const footer = "</body></html>";
-      const sourceHTML = header + htmlContent + footer;
-      
-      const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+      const sourceData = header + docHtml + footer;
+
+      const blob = new Blob(['\ufeff', sourceData], { type: 'application/msword' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-
-      let filename = 'questoes_adaptadas.doc';
-      if (file) {
-        const originalName = file.name;
-        const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-        filename = `${nameWithoutExt}_ADAPTADA.doc`;
-      }
-
-      link.download = filename;
+      link.download = `Avaliacao_Adaptada_${resultado.title.replace(/\s+/g, '_')}.doc`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Erro no download do DOC:', err);
+    } catch (e) {
+      console.error(e);
+      setError("Erro ao gerar arquivo Word.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!isFullVersion) {
-      if (isTrialExpired) {
-        setError('O seu período de teste de 30 dias expirou. Adquira uma licença Full para continuar gerando materiais.');
-        return;
-      }
-      if (generationsCount >= MAX_GENERATIONS) {
-        setError('Limite diário atingido. Você atingiu o limite de 2 gerações por dia na conta degustação. Faça login com uma conta Full para acesso ilimitado.');
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError('');
-    setResultado('');
-
-    try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Chave da API do Gemini não encontrada.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-
-      const systemInstruction = `
-Você é um especialista em educação inclusiva e design instrucional, focado em criar materiais de avaliação adaptados para alunos com Necessidades Educacionais Especiais (NEE). Sua tarefa é transformar materiais brutos em questões claras, objetivas e acessíveis.
-
-Rigor de Conteúdo e Estrutura (MUITO IMPORTANTE):
-- Baseie-se exclusivamente nos arquivos/textos fornecidos.
-- FIDELIDADE À ESTRUTURA ORIGINAL: Você DEVE manter a QUANTIDADE EXATA de questões do material original. Se o material tem 10 questões, você deve adaptar e retornar exatamente 10 questões. Não resuma ou agrupe questões.
-- FIDELIDADE AO ESTILO: Você DEVE manter o ESTILO EXATO das questões do material original. Se as questões originais são objetivas (múltipla escolha), as adaptadas DEVEM ser objetivas. Se são subjetivas, as adaptadas DEVEM ser subjetivas.
-- Se o material for complexo demais para o nível de adaptação solicitado, simplifique o conceito central mantendo a fidelidade científica/acadêmica.
-
-DIRETRIZ DE FORMATAÇÃO DE TEXTO E RECURSOS:
-- Se a opção "Caixa Alta" estiver ativada, você DEVE escrever TODO o conteúdo (enunciados, alternativas, glossário, gabarito, etc.) em LETRAS MAIÚSCULAS. Caso contrário, use a capitalização padrão.
-- Se a opção "Recursos Visuais" estiver ativada, você DEVE incluir um "Prompt para Geração de Imagem: [prompt em inglês]" descrevendo detalhadamente a cena visual da questão, para que o professor possa gerar imagens de apoio. O prompt deve ser em inglês, fotorrealista ou no estilo mais adequado para a questão.
-
-Regras de Redação para Acessibilidade:
-- Nível de Adaptação: Sempre declare no início de cada questão qual técnica foi usada (ex: Redução de Carga Cognitiva).
-- Enunciados: Use frases curtas, ordem direta (Sujeito + Verbo + Complemento) e destaque o comando em negrito (ex: Marque, Identifique, Escreva).
-- Evite Negativas: Nunca use "não é correto", "exceto" ou "todas as anteriores".
-- Matemática e Cálculos (CRÍTICO): Se a adaptação pedir redução de cálculos ou carga cognitiva, É ESTRITAMENTE PROIBIDO pedir qualquer tipo de cálculo matemático. Transforme a questão INTEIRAMENTE para IDENTIFICAÇÃO VISUAL ou RECONHECIMENTO DE CONCEITO. 
-  * Exemplo Errado: "Calcule a força..." ou "Qual é o valor de X?"
-  * Exemplo Correto: "Observe a imagem. O que a seta empurrando a caixa representa? (A) Força (B) Temperatura"
-  O objetivo é avaliar o entendimento do conceito, NUNCA a habilidade de cálculo. As alternativas devem conter palavras ou descrições visuais, não números para calcular. Use LaTeX ($$) apenas se precisar mostrar a fórmula como uma imagem conceitual.
-
-GERAÇÃO DE AUXÍLIO VISUAL E AUDIODESCRIÇÃO (CRÍTICO):
-- Se "Descrição Visual" estiver ON: Inclua "AUXÍLIO VISUAL PARA COMPREENSÃO:" com descrição clara em PORTUGUÊS. 
-  * Se "Deficiência Visual" estiver ON, transforme isso em uma AUDIODESCRIÇÃO técnica e espacial.
-- Se "Gerar Ilustrações" estiver ON: Inclua exatamente: [PROMPT_IMAGEM: descrição técnica em inglês para a IA].
-
-MANUAL DE ADAPTAÇÃO POR NECESSIDADE (AEE):
-1. TDAH: Frases curtas, ordem direta (S+V+C), comando em **NEGRITO**. 1 ideia por parágrafo.
-2. DISLEXIA: Vocabulário simples, evitar textos longos, sem ambiguidades.
-3. DISCALCULIA/COGNITIVA: PROIBIDO pedir cálculos. Transforme em identificação visual ou lógica real.
-4. TEA (AUTISMO): Linguagem literal/denotativa. Sem ironias ou metáforas.
-5. DEFICIÊNCIA VISUAL: Texto rico em detalhes espaciais e descritivos.
-
-ESTILO DAS IMAGENS (AEE):
-- Use: "flat vector illustration", "minimalist clipart", "bold black outlines", "white background", "high contrast".
-- EVITE: 3D, sombras, fotorrealismo ou fundos complexos.
-
-Estrutura da Saída (Questão Objetiva):
-- Fonte: Identificar o material.
-- Nível de Adaptação: [Descrição].
-- Enunciado: [Texto direto].
-- [PROMPT_IMAGEM: prompt em inglês] (Apenas se a opção estiver ativada).
-- Alternativas: Apenas 3 ou 4 (A, B, C, D).
-- Recursos de Acessibilidade: Incluir obrigatoriamente Glossário (palavras difíceis) e Passo a Passo (guia mental).
-- Gabarito e Justificativa: Letra correta + explicação simples do porquê está certa e por que as outras estão erradas.
-
-Estrutura da Saída (Questão Subjetiva):
-- Mesma estrutura de Fonte/Adaptação/Recursos/Prompt de Imagem.
-- Enunciado: Pergunta direta com espaço para resposta: R: _________________.
-- Gabarito: Resposta esperada + Critérios de Correção (o que não pode faltar na resposta do aluno).
-
-Restrições:
-- Não gere conteúdo fora do material anexado.
-- Não use linguagem infantilizada para alunos mais velhos, apenas simplifique a estrutura sintática.
-- Formate tudo com Markdown para garantir escaneabilidade (listas, negritos e divisórias).
-      `;
-
-      const prompt = `
-Por favor, crie as questões com base nas seguintes informações e no arquivo anexado.
-
-DIRETRIZES CRÍTICAS:
-1. Verifique o arquivo anexado e conte exatamente quantas questões existem nele. Você DEVE gerar a adaptação para TODAS as questões encontradas. Não omita nenhuma.
-2. Verifique o estilo das questões no arquivo anexado (objetiva ou subjetiva) e MANTENHA O MESMO ESTILO na sua adaptação.
-
-- Material de Suporte Adicional (Texto): ${material}
-- Etapa de Ensino: ${etapaEnsino}
-- Ano Escolar: ${ano}
-- Necessidades de Adaptação: ${adaptacoes}
-${adaptacoes.toLowerCase().includes('cálculo') || adaptacoes.toLowerCase().includes('cognitiva') || adaptacoes.toLowerCase().includes('discalculia') ? 'ATENÇÃO MÁXIMA: O USUÁRIO PEDIU REDUÇÃO DE CÁLCULOS OU CARGA COGNITIVA. VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INCLUIR QUALQUER CÁLCULO MATEMÁTICO. TRANSFORME TODAS AS QUESTÕES EM IDENTIFICAÇÃO DE IMAGENS OU CONCEITOS BÁSICOS DO DIA A DIA. AS ALTERNATIVAS DEVEM SER PALAVRAS, NÃO NÚMEROS.' : ''}
-- Usar Caixa Alta (Letras Maiúsculas): ${caixaAlta ? 'SIM - TODO O TEXTO DEVE ESTAR EM MAIÚSCULAS' : 'NÃO'}
-- Descrição Visual (Texto em Português): ${incluirDescricaoVisual ? 'SIM - GERAR SEÇÃO DE AUXÍLIO VISUAL' : 'NÃO'}
-- Gerar Ilustrações por IA (Prompt em Inglês): ${gerarImagensIA ? 'SIM - INCLUIR TAG [PROMPT_IMAGEM: ...]' : 'NÃO'}
-      `;
-
-      let parts: any[] = [];
-      
-      if (file) {
-        const fileExtension = file.name.split('.').pop()?.toLowerCase();
-        
-        if (fileExtension === 'docx') {
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          parts.push({ text: `Conteúdo do documento anexado:\n${result.value}` });
-        } else if (fileExtension === 'txt') {
-          const text = await file.text();
-          parts.push({ text: `Conteúdo do documento anexado:\n${text}` });
-        } else {
-          const base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result as string;
-              const base64 = result.split(',')[1];
-              resolve(base64);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-
-          let mimeType = file.type;
-          if (!mimeType) {
-            if (fileExtension === 'pdf') mimeType = 'application/pdf';
-            else if (fileExtension === 'png') mimeType = 'image/png';
-            else if (fileExtension === 'jpg' || fileExtension === 'jpeg') mimeType = 'image/jpeg';
-            else mimeType = 'application/pdf';
-          }
-
-          parts.push({
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType,
-            }
-          });
-        }
-      }
-
-      parts.push({ text: prompt });
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: { parts },
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-        },
-      });
-
-      setResultado(response.text || '');
-      
-      if (user && response.text) {
-        const path = `users/${user.uid}/generations`;
-        try {
-          await addDoc(collection(db, path), {
-            userId: user.uid,
-            adaptationType: adaptacoes.split('\n').filter(line => line.trim().startsWith('-')).map(line => line.replace('- ', '')).join(', ') || 'Adaptação Geral',
-            createdAt: serverTimestamp(),
-            content: response.text.substring(0, 500)
-          });
-          fetchHistory();
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, path);
-        }
-      }
-
-      if (!isFullVersion) {
-        const newCount = generationsCount + 1;
-        setGenerationsCount(newCount);
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.setItem('gerador_questoes_usage', JSON.stringify({ date: today, count: newCount }));
-      }
-      
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Ocorreu um erro ao gerar as questões.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handlePrint = () => window.print();
 
   return (
-    <>
-      <style jsx global>{`
-        @media print {
-          nav, aside, footer, .no-print, button, .lg\\:col-span-5, header:not(.content-header) {
-            display: none !important;
-          }
-          .lg\\:col-span-7 {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-          }
-          body {
-            background: white !important;
-          }
-          .prose {
-            max-width: 100% !important;
-          }
-        }
-      `}</style>
-
-      <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-4 md:p-8 lg:p-12">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-12 text-center max-w-3xl mx-auto no-print">
-          <motion.div
+    <div className="min-h-screen bg-[#fcfdfe] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+      {/* Background Decor */}
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.03),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.03),transparent_40%)]" />
+      
+      <main className="max-w-7xl mx-auto px-6 py-12">
+        <header className="mb-16 text-center">
+          <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] uppercase font-black tracking-[0.2em] mb-4 border border-blue-100/50 shadow-sm"
           >
-            <div className="flex flex-col items-center gap-2 mb-4">
-              <span className="bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full tracking-[0.2em] shadow-lg shadow-indigo-200 uppercase">
-                Pedagogia Especializada
-              </span>
-              <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-                Geração de Questões <span className="text-indigo-600">Acessíveis</span>
-              </h1>
-            </div>
-            <p className="text-slate-500 text-lg leading-relaxed">
-              Transforme materiais didáticos em avaliações inclusivas com o poder da inteligência artificial, 
-              garantindo que nenhum aluno fique para trás.
-            </p>
+            <Sparkles size={12} />
+            Educação Inclusiva & IA
           </motion.div>
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter">Gerador <span className="text-blue-600">Acessível</span></h1>
+          <p className="text-slate-400 font-medium max-w-lg mx-auto leading-relaxed">Adapte avaliações usando pedagogia baseada em evidências e um motor de IA treinado para acessibilidade.</p>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Formulário */}
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100"
-          >
-            <h2 className="text-xl font-bold mb-8 flex items-center gap-3 text-slate-900">
-              <div className="bg-blue-50 text-blue-600 p-2.5 rounded-xl">
-                <FileText size={22} />
-              </div>
-              Configuração do Material
-            </h2>
-            
-            <form onSubmit={handleGenerate} className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Documento Base</label>
-                <div 
-                  className={`group border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer ${
-                    file 
-                      ? 'border-blue-500 bg-blue-50/50' 
-                      : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50 bg-slate-50/30'
-                  }`}
-                  onClick={() => !file && fileInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                      setFile(e.dataTransfer.files[0]);
-                    }
-                  }}
-                >
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setFile(e.target.files[0]);
-                      }
-                    }}
-                    accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
-                  />
-                  {file ? (
-                    <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
-                          <FileText className="text-blue-600" size={20} />
-                        </div>
-                        <div className="text-left overflow-hidden">
-                          <p className="text-sm font-bold text-slate-900 truncate">{file.name}</p>
-                          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Pronto para processar</p>
-                        </div>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={(e) => { e.stopPropagation(); setFile(null); if(fileInputRef.current) fileInputRef.current.value = ''; }}
-                        className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="py-2">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:scale-110 transition-transform">
-                        <UploadCloud className="text-slate-400 group-hover:text-blue-500 transition-colors" size={24} />
-                      </div>
-                      <p className="text-sm text-slate-600 font-bold">Clique ou arraste o arquivo</p>
-                      <p className="text-xs text-slate-400 mt-2">PDF, DOCX, TXT ou Imagens</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          {/* Coluna Esquerda: Formulário e Histórico */}
+          <div className="lg:col-span-5 space-y-12 no-print">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white p-8 rounded-[3rem] shadow-[0_8px_40px_rgb(0,0,0,0.03)] border border-slate-100"
+            >
+              <AdaptationForm 
+                loading={loading}
+                onSubmit={handleGenerate}
+                file={file}
+                setFile={setFile}
+                material={material}
+                setMaterial={setMaterial}
+                etapaEnsino={etapaEnsino}
+                setEtapaEnsino={setEtapaEnsino}
+                ano={ano}
+                setAno={setAno}
+                caixaAlta={caixaAlta}
+                setCaixaAlta={setCaixaAlta}
+                incluirDescricaoVisual={incluirDescricaoVisual}
+                setIncluirDescricaoVisual={setIncluirDescricaoVisual}
+                gerarImagensIA={gerarImagensIA}
+                setGerarImagensIA={setGerarImagensIA}
+                adaptacoes={adaptacoes}
+                setAdaptacoes={setAdaptacoes}
+                estilosAdaptacao={estilosAdaptacao}
+                setEstilosAdaptacao={setEstilosAdaptacao}
+                generationsCount={generationsCount}
+                MAX_GENERATIONS={MAX_GENERATIONS}
+                isFullVersion={isFullVersion}
+              />
+            </motion.div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Contexto Adicional</label>
-                <textarea 
-                  value={material}
-                  onChange={(e) => setMaterial(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all min-h-[120px] text-sm text-slate-700 placeholder:text-slate-400"
-                  placeholder="Instruções específicas, resumos ou partes do texto que não estão no arquivo..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Etapa de Ensino</label>
-                  <select
-                    required
-                    value={etapaEnsino}
-                    onChange={(e) => setEtapaEnsino(e.target.value)}
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm text-slate-700 appearance-none cursor-pointer"
-                  >
-                    <option value="" disabled>Selecione...</option>
-                    <option value="Ensino Fundamental I (Anos Iniciais)">Fundamental I</option>
-                    <option value="Ensino Fundamental II (Anos Finais)">Fundamental II</option>
-                    <option value="Ensino Médio">Ensino Médio</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Ano Escolar</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={ano}
-                    onChange={(e) => setAno(e.target.value)}
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm text-slate-700 placeholder:text-slate-400"
-                    placeholder="Ex: 8º Ano"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div 
-                  className={`flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
-                    caixaAlta ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
-                  }`}
-                  onClick={() => setCaixaAlta(!caixaAlta)}
-                >
-                  <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
-                    caixaAlta ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'
-                  }`}>
-                    {caixaAlta && <div className="w-2 h-2 bg-white rounded-full" />}
-                  </div>
-                  <span className={`text-sm font-bold transition-colors ${caixaAlta ? 'text-blue-900' : 'text-slate-600'}`}>
-                    Usar CAIXA ALTA (Maiúsculas)
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <button 
-                    type="button"
-                    className={`flex items-center gap-3 p-4 rounded-2xl border transition-all w-full ${
-                      incluirDescricaoVisual ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
-                    }`}
-                    onClick={() => setIncluirDescricaoVisual(!incluirDescricaoVisual)}
-                  >
-                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
-                      incluirDescricaoVisual ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'
-                    }`}>
-                      {incluirDescricaoVisual && <div className="w-2 h-2 bg-white rounded-full" />}
-                    </div>
-                    <div className="flex flex-col items-start translate-y-[-1px]">
-                      <span className={`text-sm font-bold transition-colors ${incluirDescricaoVisual ? 'text-indigo-900' : 'text-slate-600'}`}>
-                        Descrever Auxílio Visual
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Texto de apoio para o professor</span>
-                    </div>
-                  </button>
-
-                  <button 
-                    type="button"
-                    className={`flex items-center gap-3 p-4 rounded-2xl border transition-all w-full ${
-                      gerarImagensIA ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
-                    }`}
-                    onClick={() => setGerarImagensIA(!gerarImagensIA)}
-                  >
-                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
-                      gerarImagensIA ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'
-                    }`}>
-                      {gerarImagensIA && <div className="w-2 h-2 bg-white rounded-full" />}
-                    </div>
-                    <div className="flex flex-col items-start translate-y-[-1px]">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-bold transition-colors ${gerarImagensIA ? 'text-blue-900' : 'text-slate-600'}`}>
-                          Gerar Ilustração por IA
-                        </span>
-                        <span className="bg-amber-100 text-amber-600 text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter border border-amber-200">
-                          Beta / Teste
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-medium">Criar imagem automática</span>
-                    </div>
-                    <div className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-tighter">
-                      IA
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Necessidades de Adaptação</label>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {[
-                    "TDAH",
-                    "Dislexia",
-                    "Discalculia",
-                    "Autismo",
-                    "Deficiência Visual",
-                    "Deficiência Intelectual"
-                  ].map((adap) => (
-                    <button
-                      key={adap}
-                      type="button"
-                      onClick={() => setAdaptacoes(prev => prev ? (prev.includes(adap) ? prev : `${prev}\n- ${adap}`) : `- ${adap}`)}
-                      className="bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
-                    >
-                      + {adap}
-                    </button>
-                  ))}
-                </div>
-                <textarea 
-                  required
-                  value={adaptacoes}
-                  onChange={(e) => setAdaptacoes(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all min-h-[140px] text-sm text-slate-700 placeholder:text-slate-400"
-                  placeholder="Descreva as necessidades específicas do aluno ou selecione as sugestões acima..."
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={loading || (!isFullVersion && generationsCount >= MAX_GENERATIONS)}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-xl shadow-slate-200 active:scale-[0.98]"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={22} />
-                    Processando Material...
-                  </>
-                ) : (
-                  <>
-                    <Send size={20} />
-                    Gerar Questões Adaptadas
-                  </>
-                )}
-              </button>
-              {!isFullVersion && (
-                <div className="mt-6 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                  <p className="text-sm font-bold text-slate-600">
-                    Conta Degustação: <span className={generationsCount >= MAX_GENERATIONS ? 'text-red-500' : 'text-blue-600'}>{generationsCount}</span> de {MAX_GENERATIONS} gerações diárias.
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">
-                    Período de teste: 30 dias
-                  </p>
-                </div>
-              )}
-              {isFullVersion && userAccessType === 'unlimited' && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center">
-                  <p className="text-sm font-bold text-blue-700">✨ Plano Full Ativado - Ilimitado</p>
-                </div>
-              )}
-              {isFullVersion && userAccessType === 'limited' && userExpiresAt && (
-                <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 text-center">
-                  <p className="text-sm font-bold text-amber-700">⏱️ Acesso Premium até {userExpiresAt.toLocaleDateString('pt-BR')}</p>
-                </div>
-              )}
-            </form>
-
-            {/* Histórico Recente */}
             {user && (
-              <div className="mt-10 pt-10 border-t border-slate-100">
-                <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-slate-900">
-                  <History size={20} className="text-blue-600" />
-                  Gerações Recentes
+              <div className="px-4">
+                <h3 className="text-lg font-black mb-8 flex items-center gap-3 text-slate-800">
+                  <div className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
+                    <History size={16} className="text-slate-400" />
+                  </div>
+                  Materiais Recentes
                 </h3>
-                {history.length > 0 ? (
-                  <div className="space-y-4">
-                    {history.map((item) => (
-                      <motion.div 
-                        key={item.id} 
-                        whileHover={{ x: 5 }}
-                        className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-white transition-all cursor-pointer group shadow-sm hover:shadow-md" 
-                        onClick={() => setResultado(item.content)}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest truncate max-w-[180px]">
-                            {item.adaptationType}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                            <Calendar size={10} />
-                            {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('pt-BR') : 'Agora'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 line-clamp-2 group-hover:text-slate-700 transition-colors leading-relaxed">
-                          {item.content.replace(/[#*`]/g, '').substring(0, 100)}...
-                        </p>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhum histórico</p>
-                  </div>
-                )}
+                <AdaptationHistory 
+                  history={history} 
+                  onSelect={(item) => {
+                    try {
+                      setResultado(JSON.parse(item.content));
+                    } catch (e) {
+                      setError("Não foi possível carregar este item do histórico.");
+                    }
+                  }} 
+                />
               </div>
             )}
-          </motion.div>
+          </div>
 
-          {/* Resultado */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="lg:col-span-7 bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col h-full min-h-[700px]"
-          >
-            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 no-print">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-xl">
-                  <Send size={22} className="rotate-45" />
-                </div>
-                Material Adaptado
-              </h2>
-              {resultado && !loading && (
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(resultado);
-                      alert('Copiado para a área de transferência!');
-                    }} 
-                    className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl transition-all active:scale-95 text-sm"
-                    title="Copiar texto"
-                  >
-                    <Copy size={18} />
-                    <span>Copiar</span>
-                  </button>
-                  <button 
-                    onClick={handlePrint}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-lg shadow-indigo-100 active:scale-95 text-sm"
-                    title="Exportar para PDF"
-                  >
-                    <Download size={18} />
-                    <span>PDF</span>
-                  </button>
-                  <button 
-                    onClick={handleDownloadDoc} 
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-lg shadow-emerald-100 active:scale-95 text-sm"
-                  >
-                    <FileText size={18} />
-                    <span>Word</span>
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              {error && (
+          {/* Coluna Direita: Resultado */}
+          <div className="lg:col-span-7 flex flex-col h-full min-h-[800px]">
+            <AnimatePresence mode="wait">
+              {loading ? (
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-50 text-red-700 p-6 rounded-2xl border border-red-100"
-                >
-                  <p className="font-bold mb-2 flex items-center gap-2">
-                    <X size={18} />
-                    Erro na geração
-                  </p>
-                  <p className="text-sm leading-relaxed">{error}</p>
-                </motion.div>
-              )}
-
-              {!resultado && !loading && !error && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6 py-20">
-                  <div className="w-24 h-24 bg-slate-50 rounded-3xl flex items-center justify-center border border-slate-100 shadow-inner">
-                    <FileText size={40} className="text-slate-200" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-slate-900 font-bold mb-1">Aguardando entrada</p>
-                    <p className="text-sm text-slate-400 max-w-xs mx-auto">Configure o material ao lado para gerar sua avaliação adaptada.</p>
-                  </div>
-                </div>
-              )}
-
-              {loading && (
-                <div className="h-full flex flex-col items-center justify-center space-y-8 py-20">
-                  <div className="relative">
-                    <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                        <Loader2 className="text-blue-600 animate-pulse" size={24} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-slate-900 font-bold text-lg mb-2">Processando com IA</p>
-                    <p className="text-sm text-slate-400 animate-pulse font-medium">Isso pode levar alguns segundos...</p>
-                  </div>
-                </div>
-              )}
-
-              {resultado && !loading && (
-                <motion.div 
+                  key="loading"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-col h-full"
+                  exit={{ opacity: 0 }}
                 >
-                  <div ref={resultRef} className="prose prose-slate max-w-none prose-headings:font-extrabold prose-h2:text-slate-900 prose-h3:text-slate-800 prose-p:text-slate-600 prose-li:text-slate-600 prose-strong:text-slate-900 prose-img:rounded-2xl">
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm, remarkMath]} 
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        p: ({ children }) => {
-                          const childrenArray = Array.isArray(children) ? children : [children];
-                          const content = childrenArray
-                            .map(child => typeof child === 'string' ? child : (child?.props?.children?.toString() || ''))
-                            .join('')
-                            .trim();
-                          
-                          const upperContent = content.toUpperCase();
-                          // Detecta variações de tags que a IA costuma usar
-                          const isPromptTag = upperContent.includes('[PROMPT_IMAGEM:') || 
-                                             upperContent.includes('PROMPT PARA GERAÇÃO DE IMAGEM:') ||
-                                             upperContent.includes('PROMPT DE IMAGEM:');
+                  <SkeletonLoader />
+                </motion.div>
+              ) : resultado ? (
+                <motion.div 
+                  key="result"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-8"
+                >
+                  <div className="flex justify-between items-center mb-4 no-print">
+                    <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                      <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-2xl">
+                        <Share2 size={20} className="rotate-45" />
+                      </div>
+                      Pronto para Uso
+                    </h2>
+                    <div className="flex gap-3">
+                      <button onClick={handleDownloadDoc} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95">
+                        <FileText size={14} /> EXPORTAR WORD
+                      </button>
+                      <button onClick={handlePrint} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95">
+                        <Download size={14} /> EXPORTAR PDF
+                      </button>
+                    </div>
+                  </div>
 
-                          if (isPromptTag) {
-                            let prompt = '';
-                            if (upperContent.includes('[PROMPT_IMAGEM:')) {
-                              const match = content.match(/\[PROMPT_IMAGEM:\s*(.*?)\]/i);
-                              prompt = match ? match[1] : '';
-                            } else {
-                              // Fallback para quando a IA esquece os colchetes or traduz a tag
-                              prompt = content
-                                .replace(/PROMPT PARA GERAÇÃO DE IMAGEM:/i, '')
-                                .replace(/PROMPT DE IMAGEM:/i, '')
-                                .replace(/\[PROMPT_IMAGEM:/i, '')
-                                .replace(/\]/g, '')
-                                .trim();
-                            }
-                            
-                            if (prompt && prompt.length > 5) {
-                              return <ImagePrompt prompt={prompt} />;
-                            }
-                          }
-                          return <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>;
-                        }
-                      }}
-                    >
-                      {resultado}
-                    </ReactMarkdown>
+                  {resultado.overallAEEInfo && (
+                    <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 text-blue-800 mb-8">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Resumo da Inclusão</p>
+                      <p className="text-xs font-bold leading-relaxed">{resultado.overallAEEInfo}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-8" ref={resultRef}>
+                    {resultado.questions.map((q) => (
+                      <QuestionCard 
+                        key={q.id} 
+                        question={q} 
+                        onRefine={refineQuestion}
+                        refiningId={refiningId}
+                      />
+                    ))}
                   </div>
                 </motion.div>
+              ) : (
+                <motion.div 
+                  key="empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="h-full border-2 border-dashed border-slate-100 rounded-[3rem] flex flex-col items-center justify-center p-12 text-center"
+                >
+                  <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-6">
+                    <FileText size={40} className="text-slate-200" />
+                  </div>
+                  <h2 className="text-xl font-black text-slate-800 mb-2">Configure sua Avaliação</h2>
+                  <p className="text-sm text-slate-400 max-w-xs">Anexe um material ao lado e escolha as adaptações pedagógicas para começar.</p>
+                </motion.div>
               )}
-            </div>
-          </motion.div>
+            </AnimatePresence>
+
+            {error && (
+              <div className="mt-8 bg-red-50 text-red-600 p-6 rounded-3xl border border-red-100 text-sm font-bold flex items-center gap-3">
+                <X size={20} />
+                {error}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </main>
     </div>
-    </>
   );
 }
