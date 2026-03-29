@@ -76,8 +76,11 @@ export default function Home() {
     e.preventDefault();
     if (loading) return;
     setLoading(true);
-    setError('');
-    setResultado(null);
+    if (!file && !material.trim()) {
+      setError('Por favor, anexe um arquivo ou digite o texto da avaliação original.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
@@ -174,8 +177,9 @@ export default function Home() {
       }
 
     } catch (err: any) {
-      console.error(err);
-      setError('Falha ao processar material. Verifique o formato do arquivo ou tente novamente.');
+      console.error('Erro Gemini:', err);
+      const errorMessage = err?.message || 'Falha ao processar material. Verifique a conexão ou tente novamente.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

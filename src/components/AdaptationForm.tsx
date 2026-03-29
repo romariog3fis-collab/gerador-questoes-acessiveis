@@ -96,6 +96,20 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
         </div>
       </div>
 
+      {/* Texto Manual (Opcional se houver arquivo) */}
+      <div className="space-y-2">
+        <label className="block text-sm font-bold text-slate-700 ml-1 flex items-center justify-between">
+          Ou cole o texto aqui
+          {!file && !material.trim() && <span className="text-[9px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-lg border border-amber-100 uppercase font-black">Obrigatório</span>}
+        </label>
+        <textarea 
+          value={material} 
+          onChange={(e) => setMaterial(e.target.value)} 
+          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[120px] text-sm" 
+          placeholder="Cole as questões da prova aqui se preferir não anexar o arquivo..." 
+        />
+      </div>
+
       {/* Contexto e Adaptação */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -170,7 +184,7 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
             </button>
           ))}
         </div>
-        <textarea required value={adaptacoes} onChange={(e) => setAdaptacoes(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[120px] text-sm" placeholder="Descreva as necessidades específicas..." />
+        <textarea value={adaptacoes} onChange={(e) => setAdaptacoes(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[120px] text-sm" placeholder="Descreva as necessidades específicas..." />
       </div>
 
       {/* Submit */}
