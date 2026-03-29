@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import mammoth from 'mammoth';
 import { Loader2, FileText, Send, Download, Copy, Share2, Sparkles, X, History, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -83,71 +82,34 @@ export default function Home() {
     }
 
     try {
-      const genAI = new (GoogleGenAI as any)(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
-      const ai = (genAI as any).getGenerativeModel({ 
-        model: 'gemini-1.5-pro',
-        generationConfig: { responseMimeType: "application/json" }
-      });
-
-      const systemInstruction = `
-        Você é um especialista em educação inclusiva e design instrucional baseada na Taxonomia de Bloom.
-        Sua tarefa é ler um material de avaliação e adaptá-lo para alunos com Necessidades Educacionais Especiais (NEE).
-
-        ESTILO DE ADAPTAÇÃO SOLICITADO:
-        ${estilosAdaptacao.destacarChave ? '- Destaque informações-chave em NEGTRITO.' : ''}
-        ${estilosAdaptacao.dividirBlocos ? '- Divida o texto em blocos pequenos e espaçados.' : ''}
-        ${estilosAdaptacao.listasMarcadores ? '- Transforme parágrafos densos em listas com marcadores.' : ''}
-        ${estilosAdaptacao.titulosClaros ? '- Use títulos e subtítulos claros e hierárquicos.' : ''}
-        ${estilosAdaptacao.simplificarLinguagem ? '- Use LINGUAGEM SIMPLES (evite termos complexos ou técnicos desnecessários).' : ''}
-
-        REGRA DE BLOOM (RÉGUA DE DIFICULDADE):
-        - Para ${etapaEnsino}, use prioritariamente os níveis: Lembrar, Entender e Aplicar.
-        - Classifique cada questão de acordo com a Taxonomia de Bloom original.
-
-        REGRAS DE FORMATAÇÃO:
-        - MANTENHA A NUMERAÇÃO ORIGINAL DAS QUESTÕES. Não reinicie a conta do 1 se o original começar em outro número.
-        - Se "Caixa Alta" estiver ON: Todo o conteúdo textual deve ser em MAIÚSCULAS.
-        - Se "Gerar Ilustrações" estiver ON: Inclua um imagePrompt técnico em inglês, focado em clipart, fundo branco, estilo vetor flat.
-
-        ESPECIFICAÇÕES DO FORMATO JSON (OBRIGATÓRIO):
-        Retorne um objeto JSON seguindo exatamente esta estrutura:
-        {
-          "title": "Título da Avaliação",
-          "studentInfo": true,
-          "overallAEEInfo": "Resumo pedagógico da adaptação aplicada...",
-          "questions": [
-            {
-              "id": "string único",
-              "originalNumber": "string ou número",
-              "bloomLevel": "Lembrar|Entender|Aplicar|Analisar|Avaliar|Criar",
-              "content": "Enunciado em Markdown...",
-              "type": "multiple_choice | essay",
-              "answer": "Gabarito",
-              "justification": "Justificativa pedagógica",
-              "imagePrompt": "Clipart vector illustration of [subject]...",
-              "glossary": [{"word": "...", "meaning": "..."}],
-              "steps": ["passo 1", "passo 2"]
-            }
-          ]
-        }
-      `;
-
       let fileBase64 = null;
       let fileType = null;
+      let contextMaterial = material;
+
       if (file) {
-        fileType = file.type;
-        fileBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(file);
-        });
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+        if (fileExtension === 'docx') {
+          const arrayBuffer = await file.arrayBuffer();
+          const docxResult = await mammoth.extractRawText({ arrayBuffer });
+          contextMaterial = `CONTEÚDO DO DOCUMENTO:\n${docxResult.value}\n\n${material}`;
+        } else if (fileExtension === 'txt') {
+          const txtContent = await file.text();
+          contextMaterial = `CONTEÚDO DO ARQUIVO:\n${txtContent}\n\n${material}`;
+        } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+          fileType = file.type;
+          fileBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.readAsDataURL(file);
+          });
+        }
       }
 
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          material,
+          material: contextMaterial,
           adaptacoes,
           ano,
           etapaEnsino,
@@ -155,7 +117,8 @@ export default function Home() {
           caixaAlta,
           gerarImagensIA,
           fileBase64,
-          fileType
+          fileType,
+          isRefinement: false
         })
       });
 
