@@ -17,9 +17,17 @@ export async function POST(req: Request) {
       questionToRefine
     } = await req.json();
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const rawKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = rawKey?.trim();
     
+    // LOG DE DEPURAÇÃO (SEGURO: APENAS TAMANHO E INÍCIO)
+    console.log('[API KEY DEBUG] Enviando para Gemini...');
+    console.log('[API KEY DEBUG] Tamanho:', apiKey?.length);
+    console.log('[API KEY DEBUG] Primeiros 5 caracteres:', apiKey?.substring(0, 5));
+    console.log('[API KEY DEBUG] Modelo:', 'gemini-2.5-flash');
+
     if (!apiKey) {
+      console.error('[API KEY ERROR] Chave não encontrada nos envs.');
       return NextResponse.json({ error: 'API Key não configurada no servidor.' }, { status: 500 });
     }
 
