@@ -197,8 +197,28 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
       </button>
 
       {!isFullVersion && (
-        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Créditos: {generationsCount} / {MAX_GENERATIONS}</p>
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em]">
+              Créditos — {new Date().toLocaleDateString('pt-BR', { month: 'long' })}
+            </p>
+            <p className={`text-[11px] font-black ${generationsCount >= MAX_GENERATIONS ? 'text-red-500' : 'text-slate-700'}`}>
+              {generationsCount} / {MAX_GENERATIONS}
+            </p>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                generationsCount >= MAX_GENERATIONS ? 'bg-red-500' : generationsCount >= MAX_GENERATIONS - 1 ? 'bg-amber-500' : 'bg-emerald-500'
+              }`}
+              style={{ width: `${Math.min((generationsCount / MAX_GENERATIONS) * 100, 100)}%` }}
+            />
+          </div>
+          {generationsCount >= MAX_GENERATIONS && (
+            <p className="text-[10px] text-red-500 font-bold mt-2 text-center">
+              Limite atingido. Renova em 1° de {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR', { month: 'long' })}.
+            </p>
+          )}
         </div>
       )}
     </form>

@@ -59,10 +59,21 @@ export default function Home() {
       const q = query(collection(db, path), orderBy('createdAt', 'desc'), limit(10));
       const querySnapshot = await getDocs(q);
       const items: HistoryItem[] = [];
+      let monthCount = 0;
+      const now = new Date();
       querySnapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() } as HistoryItem);
+        const data = doc.data();
+        items.push({ id: doc.id, ...data } as HistoryItem);
+        // Contar apenas adaptações do mês atual
+        if (data.createdAt) {
+          const createdDate = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          if (createdDate.getMonth() === now.getMonth() && createdDate.getFullYear() === now.getFullYear()) {
+            monthCount++;
+          }
+        }
       });
       setHistory(items);
+      setGenerationsCount(monthCount);
     } catch (err) {
       console.error(err);
     }
@@ -75,6 +86,13 @@ export default function Home() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+
+    // Bloquear se não for versão completa e atingiu o limite mensal
+    if (!isFullVersion && generationsCount >= MAX_GENERATIONS) {
+      setError(`Você atingiu o limite de ${MAX_GENERATIONS} adaptações gratuitas este mês. O contador reseta no início do próximo mês.`);
+      return;
+    }
+
     setLoading(true);
     if (!file && !material.trim()) {
       setError('Por favor, anexe um arquivo ou digite o texto da avaliação original.');
@@ -131,7 +149,7 @@ export default function Home() {
       const parsed = await response.json() as StructuredResult;
       setResultado(parsed);
       
-      // Salvar no Histórico
+      // Salvar no Histórico e debitar crédito
       if (user) {
         await addDoc(collection(db, `users/${user.uid}/generations`), {
           content: JSON.stringify(parsed),
@@ -139,6 +157,7 @@ export default function Home() {
           createdAt: serverTimestamp(),
           metadata: { ano, etapaEnsino }
         });
+        setGenerationsCount(prev => prev + 1);
         fetchHistory();
       }
 
