@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc, where, getDocs, deleteDoc, orderBy, addDoc } from 'firebase/firestore';
-import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X } from 'lucide-react';
+import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X, BarChart2, Activity, TrendingUp, Award } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface UserProfile {
@@ -387,6 +387,7 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 const AdminPanel = () => {
+  const [activeTab, setActiveTab] = useState<'users' | 'analytics'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [preAuthEmails, setPreAuthEmails] = useState<{id: string, email: string}[]>([]);
   const [newEmail, setNewEmail] = useState('');
@@ -535,21 +536,36 @@ const AdminPanel = () => {
               <div className="bg-blue-50 text-blue-600 p-2 rounded-xl">
                 <Users size={24} />
               </div>
-              Gestão de Educadores
+              Painel do Administrador
             </h2>
-            <p className="text-sm text-slate-500 mt-2">Controle o acesso e permissões dos usuários da plataforma.</p>
+            <p className="text-sm text-slate-500 mt-2">Gerencie usuários e visualize métricas de uso da plataforma.</p>
           </div>
-          <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="px-4 py-2 text-center border-r border-slate-100">
-              <p className="text-xl font-bold text-slate-900 leading-none">{users.length}</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">Total</p>
-            </div>
-            <div className="px-4 py-2 text-center">
-              <p className="text-xl font-bold text-amber-600 leading-none">{users.filter(u => u.status === 'pending').length}</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">Pendentes</p>
-            </div>
+          <div className="flex gap-2 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'users' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <Users size={14} />
+              Educadores
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'analytics' ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <BarChart2 size={14} />
+              Analytics
+            </button>
           </div>
         </div>
+
+        {activeTab === 'analytics' ? (
+          <AnalyticsPanel users={users} />
+        ) : (
+          <>
 
         {/* Seção de Pré-autorização */}
         <div className="p-8 border-b border-slate-100">
@@ -710,7 +726,219 @@ const AdminPanel = () => {
             </tbody>
           </table>
         </div>
+          </>
+        )}
       </motion.div>
+    </div>
+  );
+};
+
+// --- ANALYTICS PANEL COMPONENT ---
+const AnalyticsPanel: React.FC<{ users: UserProfile[] }> = ({ users }) => {
+  const [recentActivity, setRecentActivity] = useState<{userName: string; adaptationType: string; createdAt: any; etapaEnsino?: string}[]>([]);
+  const [totalGenerations, setTotalGenerations] = useState(0);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      setLoadingAnalytics(true);
+      let allGenerations: {userName: string; adaptationType: string; createdAt: any; etapaEnsino?: string}[] = [];
+      let total = 0;
+
+      for (const user of users) {
+        try {
+          const genQuery = query(
+            collection(db, `users/${user.uid}/generations`),
+            orderBy('createdAt', 'desc')
+          );
+          const genSnap = await getDocs(genQuery);
+          total += genSnap.size;
+          genSnap.docs.forEach(d => {
+            allGenerations.push({
+              userName: user.displayName || user.email,
+              adaptationType: d.data().adaptationType || 'Geral',
+              createdAt: d.data().createdAt,
+              etapaEnsino: d.data().metadata?.etapaEnsino || '',
+            });
+          });
+        } catch (e) {
+          // silently skip if no generations for a user
+        }
+      }
+
+      // Sort by date desc, take top 15
+      allGenerations.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setRecentActivity(allGenerations.slice(0, 15));
+      setTotalGenerations(total);
+      setLoadingAnalytics(false);
+    };
+
+    if (users.length > 0) fetchAnalytics();
+    else setLoadingAnalytics(false);
+  }, [users]);
+
+  const approved = users.filter(u => u.status === 'approved').length;
+  const pending = users.filter(u => u.status === 'pending').length;
+  const unlimited = users.filter(u => u.accessType === 'unlimited').length;
+  const limited = users.filter(u => u.accessType === 'limited').length;
+  const free = users.filter(u => !u.accessType || (u.accessType !== 'unlimited' && u.accessType !== 'limited')).length;
+
+  // Count generations per user
+  const userGenCounts: Record<string, number> = {};
+  recentActivity.forEach(g => {
+    userGenCounts[g.userName] = (userGenCounts[g.userName] || 0) + 1;
+  });
+  const topUser = Object.entries(userGenCounts).sort((a, b) => b[1] - a[1])[0];
+
+  const StatCard = ({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) => (
+    <div className={`bg-white border rounded-2xl p-6 flex items-start gap-4 shadow-sm`}>
+      <div className={`p-3 rounded-xl ${color}`}>
+        <Icon size={20} />
+      </div>
+      <div>
+        <p className="text-2xl font-black text-slate-900 leading-none">{value}</p>
+        <p className="text-[11px] text-slate-400 uppercase tracking-widest font-bold mt-1.5">{label}</p>
+      </div>
+    </div>
+  );
+
+  const BarSegment = ({ count, total, color, label }: { count: number; total: number; color: string; label: string }) => {
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    return (
+      <div className="flex items-center gap-3 mb-3">
+        <span className="text-[11px] font-bold text-slate-500 w-20 shrink-0">{label}</span>
+        <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+          <div className={`h-full rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-[11px] font-bold text-slate-700 w-8 text-right">{count}</span>
+      </div>
+    );
+  };
+
+  const formatDate = (ts: any) => {
+    if (!ts) return '—';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className="p-8 space-y-8">
+      {/* Cards de Resumo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Users} label="Total de Usuários" value={users.length} color="bg-blue-50 text-blue-600" />
+        <StatCard icon={UserCheck} label="Usuários Ativos" value={approved} color="bg-emerald-50 text-emerald-600" />
+        <StatCard icon={Clock} label="Pendentes" value={pending} color="bg-amber-50 text-amber-600" />
+        <StatCard icon={Activity} label="Adaptações Geradas" value={loadingAnalytics ? '...' : totalGenerations} color="bg-indigo-50 text-indigo-600" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Gráfico de Distribuição de Acesso */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+          <h3 className="text-sm font-black text-slate-900 mb-5 uppercase tracking-widest flex items-center gap-2">
+            <TrendingUp size={16} className="text-blue-600" />
+            Distribuição de Planos
+          </h3>
+          <BarSegment count={unlimited} total={users.length} color="bg-blue-500" label="Full" />
+          <BarSegment count={limited} total={users.length} color="bg-purple-500" label="Premium" />
+          <BarSegment count={free} total={users.length} color="bg-slate-400" label="Gratuito" />
+          <BarSegment count={pending} total={users.length} color="bg-amber-400" label="Pendente" />
+        </div>
+
+        {/* Usuário mais ativo */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+          <h3 className="text-sm font-black text-slate-900 mb-5 uppercase tracking-widest flex items-center gap-2">
+            <Award size={16} className="text-amber-500" />
+            Usuário Mais Ativo
+          </h3>
+          {loadingAnalytics ? (
+            <div className="flex items-center gap-3">
+              <Loader2 className="animate-spin text-blue-500" size={20} />
+              <span className="text-sm text-slate-400">Carregando...</span>
+            </div>
+          ) : topUser ? (
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center border border-amber-100">
+                <span className="text-2xl">🏆</span>
+              </div>
+              <div>
+                <p className="font-black text-slate-900">{topUser[0]}</p>
+                <p className="text-sm text-slate-500 mt-0.5">{topUser[1]} adaptação{topUser[1] > 1 ? 'ões' : ''} gerada{topUser[1] > 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Nenhuma atividade ainda.</p>
+          )}
+
+          <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
+            <div className="text-center">
+              <p className="text-xl font-black text-slate-900">{totalGenerations}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">Total de adaptações</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-black text-slate-900">{users.length > 0 ? (totalGenerations / users.length).toFixed(1) : 0}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">Média por usuário</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela de Atividade Recente */}
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100">
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+            <Activity size={16} className="text-indigo-500" />
+            Atividade Recente (Últimas 15 adaptações)
+          </h3>
+        </div>
+        {loadingAnalytics ? (
+          <div className="p-12 flex flex-col items-center justify-center">
+            <Loader2 className="animate-spin text-blue-500 mb-3" size={32} />
+            <p className="text-sm text-slate-400">Carregando atividade...</p>
+          </div>
+        ) : recentActivity.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-sm text-slate-400">Nenhuma atividade registrada ainda.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-400 text-[10px] uppercase tracking-[0.15em] font-bold">
+                  <th className="px-6 py-4">Usuário</th>
+                  <th className="px-6 py-4">Tipo de Adaptação</th>
+                  <th className="px-6 py-4">Etapa de Ensino</th>
+                  <th className="px-6 py-4">Data e Hora</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {recentActivity.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/30 transition-all">
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-slate-800 text-sm">{item.userName}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-indigo-100">
+                        {item.adaptationType}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-slate-500 font-medium">{item.etapaEnsino || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-slate-400 font-medium">{formatDate(item.createdAt)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
