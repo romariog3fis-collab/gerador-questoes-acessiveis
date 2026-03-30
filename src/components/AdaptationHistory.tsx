@@ -58,11 +58,18 @@ const AdaptationHistory: React.FC<AdaptationHistoryProps> = ({ history, onSelect
               </span>
             </div>
             <p className="text-xs text-slate-500 line-clamp-1 group-hover:text-slate-700 transition-colors leading-relaxed">
-              {item.metadata?.ano && `${item.metadata.ano} - `}
-              {typeof item.content === 'string' && item.content.startsWith('{') 
-                ? 'Material Estruturado' 
-                : (typeof item.content === 'string' ? item.content.replace(/[#*`]/g, '').substring(0, 80) : 'Material Adaptado')}
-              ...
+              {item.metadata?.ano && `${item.metadata.ano} · `}
+              {(() => {
+                if (typeof item.content === 'string' && item.content.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(item.content);
+                    return parsed.title || `${parsed.questions?.length || '?'} questões adaptadas`;
+                  } catch { return 'Material Estruturado'; }
+                }
+                return typeof item.content === 'string' 
+                  ? item.content.replace(/[#*`]/g, '').substring(0, 80) 
+                  : 'Material Adaptado';
+              })()}
             </p>
           </div>
           

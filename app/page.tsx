@@ -40,7 +40,8 @@ export default function Home() {
   const [error, setError] = useState('');
   const [generationsCount, setGenerationsCount] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const MAX_GENERATIONS = 5; // Aumentado para o dev
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const MAX_GENERATIONS = 5;
   
   const resultRef = useRef<HTMLDivElement>(null);
   const { user, profile, loading: authLoading, signOut } = useAuth() as any;
@@ -315,9 +316,16 @@ export default function Home() {
                   history={history} 
                   onSelect={(item) => {
                     try {
-                      setResultado(JSON.parse(item.content));
+                      const parsed = JSON.parse(item.content);
+                      setResultado(parsed);
+                      setError('');
+                      setHistoryLoaded(true);
+                      setTimeout(() => {
+                        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setTimeout(() => setHistoryLoaded(false), 2500);
+                      }, 100);
                     } catch (e) {
-                      setError("Não foi possível carregar este item do histórico.");
+                      setError('Não foi possível carregar este item do histórico.');
                     }
                   }} 
                 />
@@ -352,6 +360,12 @@ export default function Home() {
                       Pronto para Uso
                     </h2>
                     <div className="flex gap-3">
+                      {historyLoaded && (
+                        <div className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl text-xs font-bold animate-pulse">
+                          <History size={14} />
+                          Material do Histórico Carregado!
+                        </div>
+                      )}
                       <button onClick={handleDownloadDoc} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95">
                         <FileText size={14} /> EXPORTAR WORD
                       </button>
