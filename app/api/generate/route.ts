@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         RETORNE APENAS O OBJETO JSON DA QUESTÃO REFINADA (apenas o objeto {}).
       `;
       const result = await genAI.models.generateContent({
-        model: 'gemini-1.5-pro',
+        model: 'models/gemini-1.5-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { responseMimeType: "application/json" }
       });
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     parts.push({ text: `CONTEÚDO/CONTEXTO: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
 
     const result = await genAI.models.generateContent({
-      model: 'gemini-1.5-pro',
+      model: 'models/gemini-1.5-flash',
       contents: [{ role: 'user', parts }],
       config: { 
         systemInstruction,
