@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -24,26 +23,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'API Key não configurada no servidor.' }, { status: 500 });
     }
 
-    const genAI = new (GoogleGenAI as any)({ apiKey });
-
-    if (isRefinement) {
-      const prompt = `
-        VOCÊ ESTÁ REFINANDO UMA ÚNICA QUESTÃO.
-        MATERIAL ORIGINAL DA QUESTÃO: ${JSON.stringify(questionToRefine)}
-        COMANDO DE REFINAMENTO: ${refinementAction}
-        
-        RETORNE APENAS O OBJETO JSON DA QUESTÃO REFINADA (apenas o objeto {}).
-      `;
-      const result = await genAI.models.generateContent({
-        model: 'models/gemini-1.5-flash',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json" }
-      });
-      const responseText = result.candidates[0].content.parts[0].text;
-      const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
-      return NextResponse.json(JSON.parse(cleanJson));
-    }
-
     const systemInstruction = `
       Você é um especialista em educação inclusiva e design instrucional baseada na Taxonomia de Bloom.
       Sua tarefa é ler um material de avaliação e adaptá-lo para alunos com Necessidades Educacionais Especiais (NEE).
@@ -53,16 +32,10 @@ export async function POST(req: Request) {
       ${estilosAdaptacao.dividirBlocos ? '- Divida o texto em blocos pequenos e espaçados.' : ''}
       ${estilosAdaptacao.listasMarcadores ? '- Transforme parágrafos densos em listas com marcadores.' : ''}
       ${estilosAdaptacao.titulosClaros ? '- Use títulos e subtítulos claros e hierárquicos.' : ''}
-      ${estilosAdaptacao.simplificarLinguagem ? '- Use LINGUAGEM SIMPLES (evite termos complexos ou técnicos desnecessários).' : ''}
+      ${estilosAdaptacao.simplificarLinguagem ? '- Use LINGUAGEM SIMPLES.' : ''}
 
-      REGRA DE BLOOM (RÉGUA DE DIFICULDADE):
+      REGRA DE BLOOM:
       - Para ${etapaEnsino}, use prioritariamente os níveis: Lembrar, Entender e Aplicar.
-      - Classifique cada questão de acordo com a Taxonomia de Bloom original.
-
-      REGRAS DE FORMATAÇÃO:
-      - MANTENHA A NUMERAÇÃO ORIGINAL DAS QUESTÕES.
-      - Se "Caixa Alta" estiver ON: Todo o conteúdo textual deve ser em MAIÚSCULAS.
-      - Se "Gerar Ilustrações" estiver ON: Inclua um imagePrompt técnico em inglês, focado em clipart, fundo branco, estilo vetor flat.
 
       FORMATO JSON (OBRIGATÓRIO):
       {
@@ -86,22 +59,44 @@ export async function POST(req: Request) {
       }
     `;
 
-    let parts: any[] = [];
-    if (fileBase64) {
-      parts.push({ inlineData: { data: fileBase64, mimeType: fileType || 'application/pdf' } });
-    }
-    parts.push({ text: `CONTEÚDO/CONTEXTO: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
+    const model = 'gemini-1.5-flash';
+    const baseUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
-    const result = await genAI.models.generateContent({
-      model: 'models/gemini-1.5-flash',
-      contents: [{ role: 'user', parts }],
-      config: { 
-        systemInstruction,
-        responseMimeType: "application/json" 
+    let contents: any[] = [];
+    if (isRefinement) {
+      const prompt = `
+        VOCÊ ESTÁ REFINANDO UMA ÚNICA QUESTÃO.
+        MATERIAL ORIGINAL DA QUESTÃO: ${JSON.stringify(questionToRefine)}
+        COMANDO DE REFINAMENTO: ${refinementAction}
+        RETORNE APENAS O OBJETO {}.
+      `;
+      contents = [{ role: 'user', parts: [{ text: prompt }] }];
+    } else {
+      let parts: any[] = [];
+      if (fileBase64) {
+        parts.push({ inline_data: { data: fileBase64, mime_type: fileType || 'application/pdf' } });
       }
+      parts.push({ text: `CONTEÚDO: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
+      contents = [{ role: 'user', parts }];
+    }
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        system_instruction: { parts: [{ text: systemInstruction }] },
+        generationConfig: { response_mime_type: "application/json" }
+      })
     });
 
-    const responseText = result.candidates[0].content.parts[0].text;
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return NextResponse.json({ error: data.error?.message || 'Erro na API do Gemini.' }, { status: response.status });
+    }
+
+    const responseText = data.candidates[0].content.parts[0].text;
     const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
     
     return NextResponse.json(JSON.parse(cleanJson));
