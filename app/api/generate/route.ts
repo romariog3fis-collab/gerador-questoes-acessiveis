@@ -58,13 +58,14 @@ export async function POST(req: Request) {
             "type": "multiple_choice | essay",
             "answer": "...",
             "justification": "...",
-            "imagePrompt": "...",
+            ${gerarImagensIA ? '"imagePrompt": "...",' : ''}
             "glossary": [{"word": "...", "meaning": "..."}],
             "steps": ["..."]
           }
         ]
       }
       
+      ${!gerarImagensIA ? 'IMPORTANTE: NÃO inclua o campo "imagePrompt" no JSON.' : 'IMPORTANTE: O "imagePrompt" deve ser uma descrição detalhada para gerar uma imagem.'}
       RETORNE APENAS O JSON, SEM COMENTÁRIOS ADICIONAIS.
     `;
 

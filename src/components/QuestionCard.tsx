@@ -67,8 +67,8 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, onRefine, refinin
           </ReactMarkdown>
         </div>
 
-        {/* Imagem de Apoio se houver */}
-        {question.imagePrompt && (
+        {/* Imagem de Apoio se houver (Trava de segurança: ignorar prompts curtos ou que citam material original) */}
+        {question.imagePrompt && question.imagePrompt.length > 20 && !question.imagePrompt.toLowerCase().includes('material original') && (
           <ImagePrompt prompt={question.imagePrompt} />
         )}
 
