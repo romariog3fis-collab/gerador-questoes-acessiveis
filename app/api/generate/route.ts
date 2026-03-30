@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'API Key não configurada no servidor.' }, { status: 500 });
     }
 
-    const genAI = new (GoogleGenAI as any)(apiKey);
+    const genAI = new (GoogleGenAI as any)({ apiKey });
 
     if (isRefinement) {
       const prompt = `
