@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       RETORNE APENAS O JSON, SEM COMENTÁRIOS ADICIONAIS.
     `;
 
-    const baseUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const baseUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     let contents: any[] = [];
     if (isRefinement) {
