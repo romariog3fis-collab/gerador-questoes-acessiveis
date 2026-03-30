@@ -23,16 +23,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'API Key não configurada no servidor.' }, { status: 500 });
     }
 
-    const systemInstruction = `
-      Você é um especialista em educação inclusiva e design instrucional baseada na Taxonomia de Bloom.
+    // ESTRATÉGIA DE COMPATIBILIDADE TOTAL: REGRAS DENTRO DO PROMPT
+    const promptRegras = `
+      VOCÊ É UM ESPECIALISTA EM EDUCAÇÃO INCLUSIVA.
       Sua tarefa é ler um material de avaliação e adaptá-lo para alunos com Necessidades Educacionais Especiais (NEE).
 
       ESTILO DE ADAPTAÇÃO:
-      - Destaque informações-chave em NEGRITO.
-      - Divida o texto em blocos pequenos.
-      - Use LINGUAGEM SIMPLES.
+      ${estilosAdaptacao?.destacarChave ? '- Destaque informações-chave em NEGRITO.' : ''}
+      ${estilosAdaptacao?.dividirBlocos ? '- Divida o texto em blocos pequenos e espaçados.' : ''}
+      ${estilosAdaptacao?.listasMarcadores ? '- Transforme parágrafos densos em listas com marcadores.' : ''}
+      ${estilosAdaptacao?.simplificarLinguagem ? '- Use LINGUAGEM SIMPLES.' : ''}
 
-      REGRA DE BLOOM: Use prioritariamente: Lembrar, Entender e Aplicar.
+      REGRA DE BLOOM: Para ${etapaEnsino}, use prioritariamente: Lembrar, Entender e Aplicar.
 
       FORMATO JSON (OBRIGATÓRIO):
       {
@@ -54,18 +56,18 @@ export async function POST(req: Request) {
           }
         ]
       }
+      
+      RETORNE APENAS O JSON, SEM COMENTÁRIOS ADICIONAIS.
     `;
 
-    // ENDPOINT NATIVO v1 (PARA EVITAR ERROS DE VERSÃO DA SDK)
     const baseUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     let contents: any[] = [];
     if (isRefinement) {
       const prompt = `
-        VOCÊ ESTÁ REFINANDO UMA ÚNICA QUESTÃO.
-        MATERIAL ORIGINAL: ${JSON.stringify(questionToRefine)}
-        COMANDO: ${refinementAction}
-        RETORNE APENAS O OBJETO {}.
+        INSTRUÇÕES: ${promptRegras}
+        REFINANDO QUESTÃO: ${JSON.stringify(questionToRefine)}
+        AÇÃO: ${refinementAction}
       `;
       contents = [{ role: 'user', parts: [{ text: prompt }] }];
     } else {
@@ -73,18 +75,15 @@ export async function POST(req: Request) {
       if (fileBase64) {
         parts.push({ inlineData: { data: fileBase64, mimeType: fileType || 'application/pdf' } });
       }
-      parts.push({ text: `CONTEÚDO: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}` });
+      parts.push({ text: `REGRAS: ${promptRegras}\nMATERIAL: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}` });
       contents = [{ role: 'user', parts }];
     }
 
+    // ENVIANDO APENAS O CAMPO 'contents' (O MAIS BÁSICO E COMPATÍVEL)
     const response = await fetch(baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        generationConfig: { responseMimeType: "application/json" }
-      })
+      body: JSON.stringify({ contents })
     });
 
     const data = await response.json();
