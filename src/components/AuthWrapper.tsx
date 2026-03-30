@@ -736,34 +736,73 @@ const AdminPanel = () => {
                     </span>
                   </td>
                   <td className="px-8 py-6">
-                    <select
-                      value={u.role}
-                      onChange={(e) => updateRole(u.uid, e.target.value as any)}
-                      className="text-xs bg-slate-100 border-none rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-blue-500 font-bold text-slate-600 cursor-pointer appearance-none"
-                      disabled={u.email === "romariog3.fis@gmail.com"}
-                    >
-                      <option value="user">Educador</option>
-                      <option value="admin">Admin</option>
-                    </select>
+                    {u.email === "romariog3.fis@gmail.com" ? (
+                      <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl font-bold">Admin</span>
+                    ) : (
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => updateRole(u.uid, 'user')}
+                          className={`text-[11px] px-3 py-1.5 rounded-xl font-bold transition-all ${
+                            u.role !== 'admin' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                          }`}
+                        >Educador</button>
+                        <button
+                          onClick={() => updateRole(u.uid, 'admin')}
+                          className={`text-[11px] px-3 py-1.5 rounded-xl font-bold transition-all ${
+                            u.role === 'admin' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                          }`}
+                        >Admin</button>
+                      </div>
+                    )}
                   </td>
                   <td className="px-8 py-6">
-                    <div className="flex flex-col gap-1">
-                      <select
-                        value={u.accessType || 'none'}
-                        onChange={(e) => updateAccessType(u.uid, e.target.value as any)}
-                        className="text-xs bg-slate-100 border-none rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-blue-500 font-bold text-slate-600 cursor-pointer appearance-none"
-                        disabled={u.email === "romariog3.fis@gmail.com"}
-                      >
-                        <option value="none">Gratuito (30d)</option>
-                        <option value="limited">Premium (2d)</option>
-                        <option value="unlimited">Full (Ilimitado)</option>
-                      </select>
-                      {u.accessType === 'limited' && u.expiresAt && (
-                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-                          Expira: {u.expiresAt.toDate ? u.expiresAt.toDate().toLocaleDateString() : new Date(u.expiresAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
+                    {u.email === "romariog3.fis@gmail.com" ? (
+                      <span className="text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-xl font-bold">Full (Ilimitado)</span>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => updateAccessType(u.uid, 'none')}
+                            className={`text-[11px] px-3 py-1.5 rounded-xl font-bold transition-all border ${
+                              !u.accessType || (u.accessType !== 'unlimited' && u.accessType !== 'limited')
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-700'
+                            }`}
+                          >Gratuito</button>
+                          <button
+                            onClick={() => updateAccessType(u.uid, 'limited')}
+                            className={`text-[11px] px-3 py-1.5 rounded-xl font-bold transition-all border ${
+                              u.accessType === 'limited'
+                                ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                : 'bg-white text-slate-400 border-slate-200 hover:border-purple-400 hover:text-purple-600'
+                            }`}
+                          >Premium</button>
+                          <button
+                            onClick={() => updateAccessType(u.uid, 'unlimited')}
+                            className={`text-[11px] px-3 py-1.5 rounded-xl font-bold transition-all border ${
+                              u.accessType === 'unlimited'
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                : 'bg-white text-slate-400 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                          >Full</button>
+                        </div>
+                        {u.accessType === 'limited' && u.expiresAt && (() => {
+                          const expDate = u.expiresAt.toDate ? u.expiresAt.toDate() : new Date(u.expiresAt);
+                          const isExpired = expDate < new Date();
+                          const daysLeft = Math.ceil((expDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          return (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg inline-block ${
+                              isExpired ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            }`}>
+                              {isExpired
+                                ? `Expirou em ${expDate.toLocaleDateString('pt-BR')}`
+                                : `Expira em ${expDate.toLocaleDateString('pt-BR')} (${daysLeft}d)`
+                              }
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
