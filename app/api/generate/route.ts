@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     } else {
       let parts: any[] = [];
       if (fileBase64) {
-        parts.push({ inline_data: { data: fileBase64, mime_type: fileType || 'application/pdf' } });
+        parts.push({ inlineData: { data: fileBase64, mimeType: fileType || 'application/pdf' } });
       }
       parts.push({ text: `CONTEÚDO: ${material}\nADAPTAÇÕES: ${adaptacoes}\nANO: ${ano}\nETAPA: ${etapaEnsino}\nCAIXA ALTA: ${caixaAlta ? 'SIM' : 'NÃO'}\nIMAGENS: ${gerarImagensIA ? 'SIM' : 'NÃO'}` });
       contents = [{ role: 'user', parts }];
@@ -85,8 +85,8 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents,
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        generationConfig: { response_mime_type: "application/json" }
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        generationConfig: { responseMimeType: "application/json" }
       })
     });
 
