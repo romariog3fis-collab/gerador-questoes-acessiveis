@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc, where, getDocs, deleteDoc, orderBy, addDoc } from 'firebase/firestore';
-import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X, BarChart2, Activity, TrendingUp, Award } from 'lucide-react';
+import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X, BarChart2, Activity, TrendingUp, Award, Search, Filter } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface UserProfile {
@@ -394,6 +394,10 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
+  // Filtros
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
+  const [filterPlan, setFilterPlan] = useState<'all' | 'unlimited' | 'limited' | 'none'>('all');
 
   useEffect(() => {
     const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -632,6 +636,66 @@ const AdminPanel = () => {
         </div>
         
         <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
+          {/* Barra de Pesquisa e Filtros */}
+          <div className="px-8 py-5 border-b border-slate-100 bg-slate-50/30 flex flex-col md:flex-row gap-4 items-start md:items-center">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por nome ou e-mail..."
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter: Status */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1">
+              {(['all', 'approved', 'pending', 'rejected'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setFilterStatus(s)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                    filterStatus === s
+                      ? s === 'all' ? 'bg-slate-900 text-white'
+                        : s === 'approved' ? 'bg-emerald-500 text-white'
+                        : s === 'pending' ? 'bg-amber-400 text-white'
+                        : 'bg-red-500 text-white'
+                      : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  {s === 'all' ? 'Todos' : s === 'approved' ? 'Ativos' : s === 'pending' ? 'Pendentes' : 'Bloqueados'}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter: Plano */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1">
+              {(['all', 'unlimited', 'limited', 'none'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setFilterPlan(p)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                    filterPlan === p
+                      ? p === 'all' ? 'bg-slate-900 text-white'
+                        : p === 'unlimited' ? 'bg-blue-600 text-white'
+                        : p === 'limited' ? 'bg-purple-600 text-white'
+                        : 'bg-slate-400 text-white'
+                      : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  {p === 'all' ? 'Planos' : p === 'unlimited' ? 'Full' : p === 'limited' ? 'Premium' : 'Gratuito'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/30 text-slate-400 text-[10px] uppercase tracking-[0.2em] font-bold">
@@ -643,7 +707,18 @@ const AdminPanel = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {users.map((u) => (
+              {users
+                .filter(u => {
+                  const q = searchQuery.toLowerCase();
+                  const matchSearch = !q || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+                  const matchStatus = filterStatus === 'all' || u.status === filterStatus;
+                  const matchPlan = filterPlan === 'all' ||
+                    (filterPlan === 'unlimited' && u.accessType === 'unlimited') ||
+                    (filterPlan === 'limited' && u.accessType === 'limited') ||
+                    (filterPlan === 'none' && (!u.accessType || (u.accessType !== 'unlimited' && u.accessType !== 'limited')));
+                  return matchSearch && matchStatus && matchPlan;
+                })
+                .map((u) => (
                 <tr key={u.uid} className="hover:bg-slate-50/50 transition-all group">
                   <td className="px-8 py-6">
                     <div className="flex flex-col">
