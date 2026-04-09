@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, updateDoc, where, getDocs, deleteDoc, orderBy, addDoc } from 'firebase/firestore';
-import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X, BarChart2, Activity, TrendingUp, Award, Search, Filter } from 'lucide-react';
+import { Loader2, LogOut, ShieldCheck, UserCheck, UserX, Clock, Users, Settings, Plus, Trash2, Mail, X, BarChart2, Activity, TrendingUp, Award, Search, Filter, MessageSquare, Star, Bug, Lightbulb, Heart, HelpCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface UserProfile {
@@ -387,7 +387,7 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'analytics'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'analytics' | 'feedback'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [preAuthEmails, setPreAuthEmails] = useState<{id: string, email: string}[]>([]);
   const [newEmail, setNewEmail] = useState('');
@@ -563,11 +563,22 @@ const AdminPanel = () => {
               <BarChart2 size={14} />
               Analytics
             </button>
+            <button
+              onClick={() => setActiveTab('feedback')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'feedback' ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <MessageSquare size={14} />
+              Feedback
+            </button>
           </div>
         </div>
 
         {activeTab === 'analytics' ? (
           <AnalyticsPanel users={users} />
+        ) : activeTab === 'feedback' ? (
+          <FeedbackPanel />
         ) : (
           <>
 
@@ -1053,6 +1064,139 @@ const AnalyticsPanel: React.FC<{ users: UserProfile[] }> = ({ users }) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// --- FEEDBACK PANEL COMPONENT ---
+const FeedbackPanel: React.FC = () => {
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [loadingFb, setLoadingFb] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'sugestao' | 'bug' | 'elogio' | 'outro'>('all');
+
+  useEffect(() => {
+    const fetchFeedback = async () => {
+      try {
+        const q = query(collection(db, 'feedback'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        setFeedbacks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (e) {
+        console.error('Erro ao carregar feedback:', e);
+      } finally {
+        setLoadingFb(false);
+      }
+    };
+    fetchFeedback();
+  }, []);
+
+  const filtered = filter === 'all' ? feedbacks : feedbacks.filter(f => f.type === filter);
+
+  const typeConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+    sugestao: { label: 'Sugestão',  icon: <Lightbulb size={14} />,  color: 'bg-blue-50 text-blue-700 border-blue-100' },
+    bug:      { label: 'Problema',  icon: <Bug size={14} />,         color: 'bg-red-50 text-red-700 border-red-100' },
+    elogio:   { label: 'Elogio',    icon: <Heart size={14} />,        color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+    outro:    { label: 'Outro',     icon: <HelpCircle size={14} />,  color: 'bg-slate-50 text-slate-600 border-slate-200' },
+  };
+
+  const formatDate = (ts: any) => {
+    if (!ts) return '—';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const counts = {
+    all: feedbacks.length,
+    sugestao: feedbacks.filter(f => f.type === 'sugestao').length,
+    bug: feedbacks.filter(f => f.type === 'bug').length,
+    elogio: feedbacks.filter(f => f.type === 'elogio').length,
+    outro: feedbacks.filter(f => f.type === 'outro').length,
+  };
+
+  const avgRating = feedbacks.filter(f => f.rating > 0).length > 0
+    ? (feedbacks.filter(f => f.rating > 0).reduce((s, f) => s + f.rating, 0) / feedbacks.filter(f => f.rating > 0).length).toFixed(1)
+    : '—';
+
+  return (
+    <div className="p-8 space-y-6">
+      {/* Cards de resumo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-start gap-3">
+          <div className="p-2 bg-slate-50 rounded-xl"><MessageSquare size={18} className="text-slate-500" /></div>
+          <div><p className="text-2xl font-black text-slate-900">{feedbacks.length}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total</p></div>
+        </div>
+        <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-start gap-3">
+          <div className="p-2 bg-blue-50 rounded-xl"><Lightbulb size={18} className="text-blue-500" /></div>
+          <div><p className="text-2xl font-black text-slate-900">{counts.sugestao}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sugestões</p></div>
+        </div>
+        <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-start gap-3">
+          <div className="p-2 bg-red-50 rounded-xl"><Bug size={18} className="text-red-500" /></div>
+          <div><p className="text-2xl font-black text-slate-900">{counts.bug}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Problemas</p></div>
+        </div>
+        <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-start gap-3">
+          <div className="p-2 bg-amber-50 rounded-xl"><Star size={18} className="text-amber-500" /></div>
+          <div><p className="text-2xl font-black text-slate-900">{avgRating}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Nota Média</p></div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-2 flex-wrap">
+        {(['all', 'sugestao', 'bug', 'elogio', 'outro'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setFilter(t)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${
+              filter === t ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+            }`}
+          >
+            {t === 'all' ? `Todos (${counts.all})` : t === 'sugestao' ? `💡 Sugestões (${counts.sugestao})` : t === 'bug' ? `🐛 Problemas (${counts.bug})` : t === 'elogio' ? `💚 Elogios (${counts.elogio})` : `❓ Outros (${counts.outro})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Lista de feedbacks */}
+      {loadingFb ? (
+        <div className="flex items-center justify-center p-16">
+          <Loader2 className="animate-spin text-blue-500" size={32} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center p-16 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+          <MessageSquare size={32} className="text-slate-200 mx-auto mb-3" />
+          <p className="text-sm text-slate-400 font-bold">Nenhum feedback ainda.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((fb) => {
+            const cfg = typeConfig[fb.type] || typeConfig.outro;
+            return (
+              <div key={fb.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full border ${cfg.color}`}>
+                      {cfg.icon} {cfg.label}
+                    </span>
+                    {fb.rating > 0 && (
+                      <span className="flex items-center gap-0.5">
+                        {[1,2,3,4,5].map(s => (
+                          <Star key={s} size={12} className={s <= fb.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-100'} />
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium shrink-0">{formatDate(fb.createdAt)}</span>
+                </div>
+                <p className="text-sm text-slate-700 leading-relaxed mb-3">{fb.message}</p>
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                  <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px] font-black text-blue-600">
+                    {(fb.userName || fb.userEmail || '?')[0].toUpperCase()}
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium">{fb.userName || fb.userEmail || 'Anônimo'}</span>
+                  {fb.userEmail && fb.userName && <span className="text-[10px] text-slate-400">({fb.userEmail})</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

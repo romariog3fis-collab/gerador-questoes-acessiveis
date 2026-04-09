@@ -13,6 +13,7 @@ import SkeletonLoader from '@/src/components/SkeletonLoader';
 import QuestionCard from '@/src/components/QuestionCard';
 import AdaptationForm from '@/src/components/AdaptationForm';
 import AdaptationHistory from '@/src/components/AdaptationHistory';
+import FeedbackButton from '@/src/components/FeedbackButton';
 import { HistoryItem, StructuredResult, Question } from '@/src/types';
 
 export default function Home() {
@@ -437,6 +438,7 @@ export default function Home() {
           </div>
         </div>
       </main>
+      <FeedbackButton userEmail={user?.email || ''} userName={profile?.displayName || user?.displayName || ''} />
     </div>
   );
 }
