@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
 
+// ── Groq API - 100% Gratuito ────────────────────────────────────────
+// Modelo: llama-3.3-70b-versatile
+// Limites gratuitos: 14.400 req/dia, 30 req/min, 32.768 tokens/req
+// Docs: https://console.groq.com/docs/openai
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const PRIMARY_MODEL   = 'llama-3.3-70b-versatile';
+const FALLBACK_MODEL  = 'llama-3.1-8b-instant'; // fallback rápido se o 70B estiver sobrecarregado
+
 export async function POST(req: Request) {
   try {
     const {
@@ -9,53 +17,67 @@ export async function POST(req: Request) {
       isRefinement, refinementAction, questionToRefine
     } = await req.json();
 
-    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+    const apiKey = (process.env.GROQ_API_KEY || '').trim();
     if (!apiKey) {
-      return NextResponse.json({ error: 'API Key não configurada.' }, { status: 500 });
+      return NextResponse.json({ error: 'GROQ_API_KEY não configurada no servidor.' }, { status: 500 });
     }
 
-    // ── Detecção de perfis NEE ────────────────────────────────────────
+    // ── Detecção de perfis NEE ─────────────────────────────────────
     const lower = (adaptacoes || '').toLowerCase();
     const perfis: string[] = [];
 
     if (lower.includes('discalculia')) perfis.push(
       'DISCALCULIA: Elimine/substitua cálculos numéricos por raciocínio qualitativo. Quando inevitável, forneça o resultado e peça só interpretação. Use analogias cotidianas.');
     if (lower.includes('tdah')) perfis.push(
-      'TDAH: Enunciados curtos (≤3 linhas), uma ideia por questão, destaque a palavra-chave em negrito, alternativas curtas e distintas.');
+      'TDAH: Enunciados curtos (≤3 linhas), uma ideia por questão, destaque palavra-chave em negrito, alternativas curtas e distintas.');
     if (lower.includes('dislexia')) perfis.push(
-      'DISLEXIA: Frases curtas (≤15 palavras), listas com marcadores, glossário amplo, evite parágrafos denssos.');
+      'DISLEXIA: Frases curtas (≤15 palavras), listas com marcadores, glossário amplo.');
     if (lower.includes('autismo') || lower.includes('tea')) perfis.push(
-      'TEA: Linguagem literal sem metáforas, estrutura previsível, exemplos concretos do cotidiano, passo a passo de como responder.');
+      'TEA: Linguagem literal sem metáforas, estrutura previsível, exemplos concretos, passo a passo de como responder.');
     if (lower.includes('visual')) perfis.push(
-      'DEF. VISUAL: Sem referências a imagens/gráficos sem descrição textual completa. Use referências espaciais verbais.');
+      'DEF. VISUAL: Sem referências visuais sem descrição textual completa.');
     if (lower.includes('intelectual')) perfis.push(
-      'DEF. INTELECTUAL: Frases ≤10 palavras, máx. 2 alternativas (A/B), exemplo da vida real antes do enunciado, foco em Lembrar/Entender.');
+      'DEF. INTELECTUAL: Frases ≤10 palavras, máx 2 alternativas (A/B), exemplo da vida real antes do enunciado.');
 
-    // ── Estilos ──────────────────────────────────────────────────────
+    // ── Estilos ────────────────────────────────────────────────────
     const estilos = [
-      estilosAdaptacao?.destacarChave    && '**negrito** nas info-chave',
+      estilosAdaptacao?.destacarChave    && 'negrito nas info-chave',
       estilosAdaptacao?.dividirBlocos    && 'blocos pequenos espaçados',
       estilosAdaptacao?.listasMarcadores && 'listas com marcadores',
       estilosAdaptacao?.simplificarLinguagem && 'linguagem simples',
-      caixaAlta                          && 'TODO O TEXTO EM MAIÚSCULAS',
+      caixaAlta && 'TODO O TEXTO EM MAIÚSCULAS',
     ].filter(Boolean).join(', ');
 
-    // ── Schema JSON ──────────────────────────────────────────────────
+    // ── Schema JSON de saída ───────────────────────────────────────
     const imgField = gerarImagensIA ? `"imagePrompt":"descrição para imagem didática",` : '';
-    const noImg = !gerarImagensIA ? 'NÃO inclua imagePrompt.' : 'imagePrompt: descrição detalhada de ilustração didática.';
 
-    const prompt = `Você é especialista em educação inclusiva. Adapte a avaliação abaixo seguindo EXATAMENTE as instruções.
+    // ── Construção do prompt ───────────────────────────────────────
+    let systemPrompt = `Você é especialista em educação inclusiva e pedagogia adaptada. 
+Responda SEMPRE com JSON puro e válido — sem markdown, sem comentários, sem texto fora do JSON.
+
+SCHEMA obrigatório:
+{"title":"...","studentInfo":true,"overallAEEInfo":"orientações ao professor","questions":[{"id":"q1","originalNumber":"1","bloomLevel":"Lembrar","content":"enunciado com alternativas A) B) C)...","type":"multiple_choice","answer":"A) texto","justification":"motivo pedagógico",${imgField}"glossary":[{"word":"termo","meaning":"def"}],"steps":["passo 1"]}]}
+
+${!gerarImagensIA ? 'IMPORTANTE: NÃO inclua o campo imagePrompt.' : ''}`;
+
+    let userPrompt = '';
+
+    if (isRefinement) {
+      userPrompt = `Refine a questão abaixo conforme a ação solicitada. Retorne SOMENTE o JSON da questão refinada (mesmo schema).
+
+QUESTÃO ORIGINAL:
+${JSON.stringify(questionToRefine, null, 2)}
+
+AÇÃO: ${refinementAction}`;
+    } else {
+      userPrompt = `Adapte a avaliação abaixo seguindo EXATAMENTE estas instruções:
 
 REGRAS ABSOLUTAS:
-1. Número de questões e alternativas: siga o campo ADAPTAÇÕES (ex: "8 questões, 3 alternativas" → gere exatamente isso).
-2. Perfis NEE ativos — aplique obrigatoriamente:
+1. Quantidade: siga o campo ADAPTAÇÕES (ex: "8 questões, 3 alternativas" → gere exatamente isso).
+2. Perfis NEE — aplique obrigatoriamente:
 ${perfis.length ? perfis.map(p => '   • ' + p).join('\n') : '   • Adaptação geral de acessibilidade.'}
-3. Estilos: ${estilos || 'padrão'}.
+3. Estilos: ${estilos || 'padrão acessível'}.
 4. Etapa: ${etapaEnsino || 'Ensino Fundamental'} — priorize Bloom: Lembrar, Entender, Aplicar.
-5. ${noImg}
-
-RETORNE SOMENTE este JSON (sem markdown, sem texto adicional):
-{"title":"...","studentInfo":true,"overallAEEInfo":"resumo das adaptações e orientações ao professor","questions":[{"id":"q1","originalNumber":"1","bloomLevel":"Lembrar","content":"enunciado completo com alternativas A) B) C)...","type":"multiple_choice","answer":"A) texto correto","justification":"motivo pedagógico",${imgField}"glossary":[{"word":"termo","meaning":"definição simples"}],"steps":["passo 1","passo 2"]}]}
 
 MATERIAL ORIGINAL:
 ${material}
@@ -64,43 +86,57 @@ ADAPTAÇÕES SOLICITADAS:
 ${adaptacoes || 'Adaptação geral inclusiva.'}
 ANO: ${ano} | ETAPA: ${etapaEnsino}`;
 
-    // ── Chamada Gemini ────────────────────────────────────────────────
-    const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    let contents: any[];
-    if (isRefinement) {
-      contents = [{ role: 'user', parts: [{ text: `${prompt}\n\nREFINAR QUESTÃO:\n${JSON.stringify(questionToRefine)}\nAÇÃO: ${refinementAction}` }] }];
-    } else {
-      const parts: any[] = [];
-      if (fileBase64) parts.push({ inlineData: { data: fileBase64, mimeType: fileType || 'application/pdf' } });
-      parts.push({ text: prompt });
-      contents = [{ role: 'user', parts }];
+      // Se veio arquivo de imagem/PDF como base64, adicionar aviso ao prompt
+      if (fileBase64) {
+        userPrompt += `\n\n[NOTA: Um arquivo foi anexado mas não pode ser processado diretamente. Use o texto do material acima para fazer a adaptação.]`;
+      }
     }
 
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.4,      // menos criatividade = menos tokens de saída redundantes
-          maxOutputTokens: 8192,
-        }
-      })
-    });
+    // ── Chamada à API do Groq ──────────────────────────────────────
+    const callGroq = async (model: string) => {
+      const res = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userPrompt },
+          ],
+          temperature: 0.4,
+          max_tokens: 8000,
+          response_format: { type: 'json_object' }, // força JSON válido
+        }),
+      });
+      return res;
+    };
+
+    // Tenta modelo principal, com fallback automático
+    let response = await callGroq(PRIMARY_MODEL);
+
+    if (!response.ok && response.status === 503) {
+      console.warn(`[Groq] ${PRIMARY_MODEL} sobrecarregado, tentando fallback ${FALLBACK_MODEL}...`);
+      response = await callGroq(FALLBACK_MODEL);
+    }
 
     const data = await response.json();
+
     if (!response.ok) {
-      console.error('Gemini Error:', data);
-      return NextResponse.json({ error: data.error?.message || 'Erro na API do Gemini.' }, { status: response.status });
+      console.error('[Groq] Erro:', data);
+      const msg = data.error?.message || 'Erro na API do Groq.';
+      return NextResponse.json({ error: msg }, { status: response.status });
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.choices?.[0]?.message?.content || '';
     const clean = text.replace(/```json\n?|```/g, '').trim();
+
     return NextResponse.json(JSON.parse(clean));
 
   } catch (error: any) {
-    console.error('Route Error:', error);
-    return NextResponse.json({ error: error.message || 'Erro interno.' }, { status: 500 });
+    console.error('[Route] Erro interno:', error);
+    return NextResponse.json({ error: error.message || 'Erro interno no servidor.' }, { status: 500 });
   }
 }
