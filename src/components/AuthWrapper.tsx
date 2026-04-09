@@ -328,6 +328,35 @@ export const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   }
 
+  let isExpired = false;
+  if (profile?.expiresAt) {
+    const expireDate = profile.expiresAt.toDate ? profile.expiresAt.toDate() : new Date(profile.expiresAt);
+    isExpired = new Date() > expireDate;
+  }
+
+  if (isExpired && profile?.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10 text-center border border-slate-100">
+          <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-8">
+            <Clock size={32} className="text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">Acesso Expirado</h1>
+          <p className="text-slate-500 mb-10 text-sm leading-relaxed">
+            O período de validade da sua conta na plataforma chegou ao fim. Por favor, entre em contato com o administrador para renovar o seu acesso.
+          </p>
+          <button
+            onClick={signOut}
+            className="flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 mx-auto transition-colors text-sm font-medium"
+          >
+            <LogOut size={16} />
+            Sair da conta
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans">
       <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 sticky top-0 z-50">
