@@ -2,178 +2,105 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { 
-      material, 
-      adaptacoes, 
-      ano, 
-      etapaEnsino, 
-      estilosAdaptacao, 
-      caixaAlta, 
-      gerarImagensIA,
-      fileBase64,
-      fileType,
-      isRefinement,
-      refinementAction,
-      questionToRefine
+    const {
+      material, adaptacoes, ano, etapaEnsino,
+      estilosAdaptacao, caixaAlta, gerarImagensIA,
+      fileBase64, fileType,
+      isRefinement, refinementAction, questionToRefine
     } = await req.json();
 
-    const rawKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-    const apiKey = rawKey?.trim();
-
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) {
-      return NextResponse.json({ error: 'API Key não configurada no servidor.' }, { status: 500 });
+      return NextResponse.json({ error: 'API Key não configurada.' }, { status: 500 });
     }
 
-    // ============================================================
-    // DETECÇÃO DE PERFIS NEE
-    // ============================================================
-    const adaptacoesLower = (adaptacoes || '').toLowerCase();
-    const temDiscalculia  = adaptacoesLower.includes('discalculia');
-    const temTDAH         = adaptacoesLower.includes('tdah');
-    const temDislexia     = adaptacoesLower.includes('dislexia');
-    const temTEA          = adaptacoesLower.includes('autismo') || adaptacoesLower.includes('tea');
-    const temDefVisual    = adaptacoesLower.includes('visual');
-    const temDefIntelectual = adaptacoesLower.includes('intelectual');
+    // ── Detecção de perfis NEE ────────────────────────────────────────
+    const lower = (adaptacoes || '').toLowerCase();
+    const perfis: string[] = [];
 
-    // Instruções específicas por perfil NEE
-    const instrucoesPerfil: string[] = [];
+    if (lower.includes('discalculia')) perfis.push(
+      'DISCALCULIA: Elimine/substitua cálculos numéricos por raciocínio qualitativo. Quando inevitável, forneça o resultado e peça só interpretação. Use analogias cotidianas.');
+    if (lower.includes('tdah')) perfis.push(
+      'TDAH: Enunciados curtos (≤3 linhas), uma ideia por questão, destaque a palavra-chave em negrito, alternativas curtas e distintas.');
+    if (lower.includes('dislexia')) perfis.push(
+      'DISLEXIA: Frases curtas (≤15 palavras), listas com marcadores, glossário amplo, evite parágrafos denssos.');
+    if (lower.includes('autismo') || lower.includes('tea')) perfis.push(
+      'TEA: Linguagem literal sem metáforas, estrutura previsível, exemplos concretos do cotidiano, passo a passo de como responder.');
+    if (lower.includes('visual')) perfis.push(
+      'DEF. VISUAL: Sem referências a imagens/gráficos sem descrição textual completa. Use referências espaciais verbais.');
+    if (lower.includes('intelectual')) perfis.push(
+      'DEF. INTELECTUAL: Frases ≤10 palavras, máx. 2 alternativas (A/B), exemplo da vida real antes do enunciado, foco em Lembrar/Entender.');
 
-    if (temDiscalculia) instrucoesPerfil.push(`
-PERFIL ATIVO: DISCALCULIA
-- ELIMINE ou REDUZA questões que exijam cálculo numérico puro (somas, divisões, equações longas).
-- SUBSTITUA questões de cálculo por questões de raciocínio QUALITATIVO (ex: "O que acontece quando...", "Qual é MAIOR?", "Em que situação...").
-- Quando for INEVITÁVEL manter um cálculo, forneça os números já calculados e peça apenas INTERPRETAÇÃO do resultado.
-- Prefira questões de associação, ordenação e conceito em vez de operações numéricas.
-- Use analogias do cotidiano (ex: "É como dividir uma pizza entre amigos").`);
+    // ── Estilos ──────────────────────────────────────────────────────
+    const estilos = [
+      estilosAdaptacao?.destacarChave    && '**negrito** nas info-chave',
+      estilosAdaptacao?.dividirBlocos    && 'blocos pequenos espaçados',
+      estilosAdaptacao?.listasMarcadores && 'listas com marcadores',
+      estilosAdaptacao?.simplificarLinguagem && 'linguagem simples',
+      caixaAlta                          && 'TODO O TEXTO EM MAIÚSCULAS',
+    ].filter(Boolean).join(', ');
 
-    if (temTDAH) instrucoesPerfil.push(`
-PERFIL ATIVO: TDAH
-- Questões CURTAS e DIRETAS — máximo 3 linhas de enunciado.
-- Uma única ideia por questão, sem múltiplas partes.
-- Elimine informações irrelevantes.
-- Use NEGRITO para destacar a palavra-chave central da pergunta.
-- Prefira questões objetivas com alternativas curtas e claramente distintas.`);
+    // ── Schema JSON ──────────────────────────────────────────────────
+    const imgField = gerarImagensIA ? `"imagePrompt":"descrição para imagem didática",` : '';
+    const noImg = !gerarImagensIA ? 'NÃO inclua imagePrompt.' : 'imagePrompt: descrição detalhada de ilustração didática.';
 
-    if (temDislexia) instrucoesPerfil.push(`
-PERFIL ATIVO: DISLEXIA
-- Frases curtas (máx. 15 palavras), vocabulário simples e frequente.
-- Use listas com marcadores em vez de parágrafos longos.
-- Repita informações-chave de formas diferentes no enunciado.
-- Ofereça glossário amplo para todos os termos técnicos.`);
+    const prompt = `Você é especialista em educação inclusiva. Adapte a avaliação abaixo seguindo EXATAMENTE as instruções.
 
-    if (temTEA) instrucoesPerfil.push(`
-PERFIL ATIVO: TEA (AUTISMO)
-- Linguagem LITERAL e sem ambiguidade — evite metáforas e duplos sentidos.
-- Estrutura padronizada e previsível para todas as questões.
-- Evite questões que dependam de interpretação social ou emocional.
-- Use exemplos concretos e situações do cotidiano próximas ao aluno.
-- Inclua "Passo a passo" de como responder cada questão.`);
+REGRAS ABSOLUTAS:
+1. Número de questões e alternativas: siga o campo ADAPTAÇÕES (ex: "8 questões, 3 alternativas" → gere exatamente isso).
+2. Perfis NEE ativos — aplique obrigatoriamente:
+${perfis.length ? perfis.map(p => '   • ' + p).join('\n') : '   • Adaptação geral de acessibilidade.'}
+3. Estilos: ${estilos || 'padrão'}.
+4. Etapa: ${etapaEnsino || 'Ensino Fundamental'} — priorize Bloom: Lembrar, Entender, Aplicar.
+5. ${noImg}
 
-    if (temDefVisual) instrucoesPerfil.push(`
-PERFIL ATIVO: DEFICIÊNCIA VISUAL
-- Elimine referências a gráficos, imagens ou mapas sem fornecer descrição textual completa.
-- Descreva dados visuais verbalmente (ex: "A tabela mostra que o valor X é 30 e o valor Y é 70").
-- Use referências espaciais verbais claras (ex: "no primeiro item da lista").`);
+RETORNE SOMENTE este JSON (sem markdown, sem texto adicional):
+{"title":"...","studentInfo":true,"overallAEEInfo":"resumo das adaptações e orientações ao professor","questions":[{"id":"q1","originalNumber":"1","bloomLevel":"Lembrar","content":"enunciado completo com alternativas A) B) C)...","type":"multiple_choice","answer":"A) texto correto","justification":"motivo pedagógico",${imgField}"glossary":[{"word":"termo","meaning":"definição simples"}],"steps":["passo 1","passo 2"]}]}
 
-    if (temDefIntelectual) instrucoesPerfil.push(`
-PERFIL ATIVO: DEFICIÊNCIA INTELECTUAL
-- Linguagem do cotidiano — frases de até 10 palavras.
-- Use no máximo 2 alternativas (A e B) por questão objetiva.
-- Ilustre cada questão com um exemplo da vida real antes do enunciado.
-- Foco exclusivo em Lembrar e Entender (Taxonomia de Bloom).
-- Evite abstrações — use sempre objetos, lugares e situações reais.`);
+MATERIAL ORIGINAL:
+${material}
 
-    // ============================================================
-    // PROMPT PEDAGÓGICO ESPECIALIZADO
-    // ============================================================
-    const promptRegras = `
-VOCÊ É UM ESPECIALISTA SÊNIOR EM EDUCAÇÃO INCLUSIVA E PEDAGOGIA ADAPTADA.
+ADAPTAÇÕES SOLICITADAS:
+${adaptacoes || 'Adaptação geral inclusiva.'}
+ANO: ${ano} | ETAPA: ${etapaEnsino}`;
 
-════ MISSÃO PRINCIPAL ════
-Adapte o material de avaliação conforme as instruções do campo ADAPTAÇÕES, que têm MÁXIMA PRIORIDADE.
+    // ── Chamada Gemini ────────────────────────────────────────────────
+    const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-════ CONTROLE DE QUESTÕES — REGRAS ABSOLUTAS ════
-1. Se o campo ADAPTAÇÕES indicar um número de questões (ex: "8 questões", "reduzir para 5"), gere EXATAMENTE esse número.
-2. Se o campo ADAPTAÇÕES indicar o número de alternativas (ex: "3 alternativas", "itens a, b, c", "abc"), use EXATAMENTE esse número de alternativas em todas as questões objetivas.
-3. Se não houver instrução explícita, mantenha a quantidade original.
-4. Selecione as questões de MAIOR RELEVÂNCIA pedagógica para o perfil do aluno.
-
-════ INSTRUÇÕES ESPECÍFICAS POR PERFIL ════
-${instrucoesPerfil.length > 0 ? instrucoesPerfil.join('\n') : '- Aplique adaptações gerais de acessibilidade para o perfil informado.'}
-
-════ ESTILO PEDAGÓGICO ════
-${estilosAdaptacao?.destacarChave ? '- Destaque informações-chave em **NEGRITO**.' : ''}
-${estilosAdaptacao?.dividirBlocos ? '- Divida o texto em blocos pequenos e espaçados.' : ''}
-${estilosAdaptacao?.listasMarcadores ? '- Transforme parágrafos densos em listas com marcadores.' : ''}
-${estilosAdaptacao?.simplificarLinguagem ? '- Use LINGUAGEM SIMPLES E ACESSÍVEL.' : ''}
-${caixaAlta ? '- Escreva TODO O TEXTO EM LETRAS MAIÚSCULAS.' : ''}
-
-════ TAXONOMIA DE BLOOM ════
-Para ${etapaEnsino || 'Ensino Fundamental'}, priorize: Lembrar, Entender e Aplicar.
-
-════ FORMATO DE SAÍDA — JSON PURO ════
-Retorne SOMENTE o JSON abaixo. Sem markdown, sem explicações, sem texto fora do JSON:
-{
-  "title": "Título da Avaliação Adaptada",
-  "studentInfo": true,
-  "overallAEEInfo": "Resumo das adaptações aplicadas e orientações para o professor",
-  "questions": [
-    {
-      "id": "q1",
-      "originalNumber": "1",
-      "bloomLevel": "Lembrar",
-      "content": "Texto completo da questão com alternativas A), B), C)... se objetiva",
-      "type": "multiple_choice",
-      "answer": "A) Texto da alternativa correta",
-      "justification": "Por que esta é a resposta correta, com base pedagógica",
-      ${gerarImagensIA ? '"imagePrompt": "Descrição detalhada para gerar imagem didática",' : ''}
-      "glossary": [{"word": "termo", "meaning": "definição acessível"}],
-      "steps": ["Passo 1 para resolver", "Passo 2"]
-    }
-  ]
-}
-${!gerarImagensIA ? '\nREGRA CRÍTICA: NÃO inclua o campo "imagePrompt" no JSON em hipótese alguma.' : ''}
-    `;
-
-    const baseUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-    let contents: any[] = [];
+    let contents: any[];
     if (isRefinement) {
-      const prompt = `
-        INSTRUÇÕES: ${promptRegras}
-        REFINANDO QUESTÃO: ${JSON.stringify(questionToRefine)}
-        AÇÃO: ${refinementAction}
-      `;
-      contents = [{ role: 'user', parts: [{ text: prompt }] }];
+      contents = [{ role: 'user', parts: [{ text: `${prompt}\n\nREFINAR QUESTÃO:\n${JSON.stringify(questionToRefine)}\nAÇÃO: ${refinementAction}` }] }];
     } else {
-      let parts: any[] = [];
-      if (fileBase64) {
-        parts.push({ inlineData: { data: fileBase64, mimeType: fileType || 'application/pdf' } });
-      }
-      parts.push({ text: `${promptRegras}\n\nMATERIAL ORIGINAL:\n${material}\n\nADAPTAÇÕES SOLICITADAS:\n${adaptacoes}\n\nANO ESCOLAR: ${ano}\nETAPA: ${etapaEnsino}` });
+      const parts: any[] = [];
+      if (fileBase64) parts.push({ inlineData: { data: fileBase64, mimeType: fileType || 'application/pdf' } });
+      parts.push({ text: prompt });
       contents = [{ role: 'user', parts }];
     }
 
     const response = await fetch(baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents })
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          temperature: 0.4,      // menos criatividade = menos tokens de saída redundantes
+          maxOutputTokens: 8192,
+        }
+      })
     });
 
     const data = await response.json();
-    
     if (!response.ok) {
-      console.error('Gemini API Error Payload:', data);
+      console.error('Gemini Error:', data);
       return NextResponse.json({ error: data.error?.message || 'Erro na API do Gemini.' }, { status: response.status });
     }
 
-    const responseText = data.candidates[0].content.parts[0].text;
-    const cleanJson = responseText.replace(/```json\n?|```/g, '').trim();
-    
-    return NextResponse.json(JSON.parse(cleanJson));
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const clean = text.replace(/```json\n?|```/g, '').trim();
+    return NextResponse.json(JSON.parse(clean));
 
   } catch (error: any) {
-    console.error('API Error:', error);
-    return NextResponse.json({ error: error.message || 'Erro interno no servidor.' }, { status: 500 });
+    console.error('Route Error:', error);
+    return NextResponse.json({ error: error.message || 'Erro interno.' }, { status: 500 });
   }
 }
