@@ -40,10 +40,16 @@ const ImagePrompt = ({ prompt }: ImagePromptProps) => {
           </div>
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ilustração Gerada por IA</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full border border-indigo-100 shadow-sm animate-pulse no-print">
-          <Sparkles size={12} />
-          <span className="text-[10px] font-bold uppercase tracking-tighter">IA em Teste / Experimental</span>
+        <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1 rounded-full border border-amber-200 shadow-sm no-print">
+          <span className="text-xs">⚠️</span>
+          <span className="text-[10px] font-black uppercase tracking-tighter">Fase de Testes</span>
         </div>
+      </div>
+      {/* Aviso de instabilidade */}
+      <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2 no-print">
+        <span className="text-[10px] text-amber-700 font-medium leading-relaxed">
+          ⚡ Este recurso está em <strong>fase experimental</strong>. A imagem pode demorar ou falhar — clique em "Tentar Novamente" se isso acontecer.
+        </span>
       </div>
       <div className="relative aspect-video bg-slate-100 overflow-hidden flex items-center justify-center">
         {loading && (

@@ -169,10 +169,21 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
         </button>
       </div>
 
-      <button type="button" onClick={() => setGerarImagensIA(!gerarImagensIA)} className={`flex items-center gap-3 p-4 rounded-2xl border transition-all w-full ${gerarImagensIA ? 'bg-emerald-50 border-emerald-100 shadow-sm' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-        <div className={`w-4 h-4 rounded border ${gerarImagensIA ? 'bg-emerald-600 border-emerald-600' : 'bg-white border-slate-300'}`} />
-        <span className="text-[11px] font-bold uppercase tracking-wider">Gerar Ilustrações com IA</span>
-      </button>
+      <div className="space-y-2">
+        <button type="button" onClick={() => setGerarImagensIA(!gerarImagensIA)} className={`flex items-center gap-3 p-4 rounded-2xl border transition-all w-full ${gerarImagensIA ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
+          <div className={`w-4 h-4 rounded border shrink-0 ${gerarImagensIA ? 'bg-amber-500 border-amber-500' : 'bg-white border-slate-300'}`} />
+          <span className="text-[11px] font-bold uppercase tracking-wider flex-1 text-left">Gerar Ilustrações com IA</span>
+          <span className="text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">BETA</span>
+        </button>
+        {gerarImagensIA && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+            <span className="text-amber-500 text-xs shrink-0 mt-0.5">⚠️</span>
+            <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+              <strong>Recurso em fase de testes.</strong> A geração de imagens pode ser instável ou demorar alguns segundos. Em caso de falha, tente novamente.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Necessidades AEE */}
       <div>
