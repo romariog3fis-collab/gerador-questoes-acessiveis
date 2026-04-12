@@ -107,7 +107,7 @@ ANO: ${ano} | ETAPA: ${etapaEnsino}`;
             { role: 'user',   content: userPrompt },
           ],
           temperature: 0.4,
-          max_tokens: 8000,
+          max_tokens: 4000,
           response_format: { type: 'json_object' }, // força JSON válido
         }),
       });
@@ -117,8 +117,9 @@ ANO: ${ano} | ETAPA: ${etapaEnsino}`;
     // Tenta modelo principal, com fallback automático
     let response = await callGroq(PRIMARY_MODEL);
 
-    if (!response.ok && response.status === 503) {
-      console.warn(`[Groq] ${PRIMARY_MODEL} sobrecarregado, tentando fallback ${FALLBACK_MODEL}...`);
+    // Se o modelo principal falhar por estar sobrecarregado (503), limite de tokens (429) ou mensagem muito grande para o tier (400)
+    if (!response.ok && [400, 429, 503].includes(response.status)) {
+      console.warn(`[Groq] Erro ${response.status} com ${PRIMARY_MODEL}, tentando fallback ${FALLBACK_MODEL}...`);
       response = await callGroq(FALLBACK_MODEL);
     }
 
