@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_PRIMARY = 'llama-3.3-70b-versatile';
 const GROQ_SMALL   = 'llama-3.1-8b-instant';
-const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export async function POST(req: Request) {
   try {
