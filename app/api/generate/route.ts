@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 
 // ── Provedores de IA (todos gratuitos) ────────────────────────────────────
 // Camada 1: Groq llama-3.3-70b  → 14.400 req/dia
@@ -151,17 +151,19 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
     const callGemini = async () => {
       if (!geminiKey) return null;
 
+      // Gemini API v1 não suporta "systemInstruction" nem "responseMimeType"
+      // → mesclamos o system prompt no conteúdo do usuário
+      const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
       const body = JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }],
         generationConfig: {
           temperature: 0.35,
           maxOutputTokens: 5000,
-          responseMimeType: 'application/json',
         },
       });
 
-      // Tenta x-goog-api-key (formato moderno recomendado pelo Google — funciona com AIza e AQ.)
+      // Usa x-goog-api-key header (funciona com AIza e AQ.)
       const res = await fetch(GEMINI_URL, {
         method: 'POST',
         headers: {
