@@ -215,16 +215,22 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
         if (rawText) console.log('[Route] Respondido por Gemini 2.0 Flash');
       } else {
         const errData = res3 ? await res3.json().catch(() => ({})) : {};
-        return NextResponse.json(
-          { error: errData?.error?.message || 'Todos os provedores de IA estão indisponíveis. Tente novamente em alguns minutos.' },
-          { status: 503 }
-        );
+        const errMsg = errData?.error?.message || '';
+        // Log técnico no servidor, mensagem amigável para o usuário
+        console.error('[Gemini] Erro:', errMsg.slice(0, 300));
+
+        // Quota esgotada: erro esperado, não expor detalhes técnicos
+        const isQuota = errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('limit');
+        if (isQuota) {
+          console.warn('[Gemini] Cota esgotada. Verifique a GEMINI_API_KEY no Vercel (use chave de projeto SEM faturamento).');
+        }
+        // Continua — rawText ainda null, vai retornar erro abaixo
       }
     }
 
     if (!rawText) {
       return NextResponse.json(
-        { error: 'Não foi possível obter resposta de nenhum provedor de IA. Verifique as chaves configuradas.' },
+        { error: 'Os servidores de IA estão sobrecarregados no momento. Aguarde alguns minutos e tente novamente.' },
         { status: 503 }
       );
     }
