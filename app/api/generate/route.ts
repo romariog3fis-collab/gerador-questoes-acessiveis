@@ -77,24 +77,28 @@ export async function POST(req: Request) {
     const imgField = gerarImagensIA ? `"imagePrompt":"string descrevendo ilustração didática",` : '';
     const imgNote  = gerarImagensIA ? '' : 'NÃO inclua o campo imagePrompt no JSON.';
 
-    const systemPrompt = `Você é especialista em educação inclusiva. Responda APENAS com JSON válido, sem texto extra, sem markdown.
+    const systemPrompt = `Você é especialista em educação inclusiva. Sua única função é ADAPTAR questões já existentes — NUNCA criar questões novas.
 
-SCHEMA OBRIGATÓRIO para cada questão:
+REGRA ABSOLUTA Nº1: USE SOMENTE o conteúdo do material fornecido. É PROIBIDO inventar, criar ou substituir questões por conteúdo que não esteja no material original.
+REGRA ABSOLUTA Nº2: Se não encontrar questões suficientes no material, adapte apenas as que existem.
+REGRA ABSOLUTA Nº3: Responda APENAS com JSON válido, sem texto extra, sem markdown.
+
+SCHEMA para cada questão:
 {
   "id": "q1",
   "originalNumber": "1",
   "bloomLevel": "Lembrar|Entender|Aplicar|Analisar|Avaliar|Criar",
   "type": "multiple_choice" para objetivas OU "essay" para subjetivas/discursivas,
-  "content": "enunciado completo. Para multiple_choice inclua as alternativas: A) ... B) ... C) ...",
-  "answer": "resposta correta (para essay: resposta esperada resumida)",
+  "content": "enunciado ADAPTADO baseado na questão original. Para multiple_choice inclua as alternativas: A) ... B) ... C) ...",
+  "answer": "resposta correta",
   "justification": "justificativa pedagógica breve",
   ${imgField}
-  "glossary": [{"word": "termo", "meaning": "definição simples"}],
-  "steps": ["passo 1", "passo 2"]
+  "glossary": [{"word": "termo difícil DO ENUNCIADO", "meaning": "definição simples"}],
+  "steps": ["passo 1 para resolver", "passo 2"]
 }
 
 ${imgNote}
-Retorne: {"title":"...","studentInfo":true,"overallAEEInfo":"orientações ao professor","questions":[...]}`;
+Retorne: {"title":"...","studentInfo":true,"overallAEEInfo":"orientações ao professor sobre as adaptações feitas","questions":[...]}`;
 
     let userPrompt = '';
 
@@ -109,9 +113,12 @@ AÇÃO: ${refinementAction}`;
 
     } else {
       // ── Geração principal ─────────────────────────────────────────────
-      userPrompt = `Adapte o material abaixo para uma avaliação inclusiva.
+      userPrompt = `Adapte as questões abaixo para tornar a avaliação mais acessível.
 
-=== REGRAS ABSOLUTAS (não ignore) ===
+⚠️ ATENÇÃO: É OBRIGATÓRIO trabalhar com as questões do MATERIAL ORIGINAL abaixo.
+HALUCINAÇÃO É PROIBIDA: não crie questões que não existem no material. Adapte o conteúdo que está lá.
+
+=== REGRAS DE ADAPTAÇÃO ===
 QUANTIDADE: ${instrucaoQuantidade}
 ALTERNATIVAS: ${instrucaoAlts}
 PERFIS NEE:
@@ -120,14 +127,14 @@ ESTILOS: ${estilos}
 ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
 Taxonomia de Bloom: priorize níveis Lembrar, Entender e Aplicar.
 
-=== MATERIAL ORIGINAL ===
-${(material || '').slice(0, 6000)}
+=== MATERIAL ORIGINAL (adapte SOMENTE este conteúdo) ===
+${(material || '').slice(0, 8000)}
 
 === ADAPTAÇÕES SOLICITADAS ===
 ${adaptacoes || 'Adaptação geral inclusiva.'}`;
 
       if (fileBase64) {
-        userPrompt += '\n\n[Arquivo também enviado — use o texto acima como base principal.]';
+        userPrompt += '\n\n[Arquivo também enviado. Use o texto acima como base.]';
       }
     }
 

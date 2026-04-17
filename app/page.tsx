@@ -111,10 +111,22 @@ export default function Home() {
         if (fileExtension === 'docx') {
           const arrayBuffer = await file.arrayBuffer();
           const docxResult = await mammoth.extractRawText({ arrayBuffer });
-          contextMaterial = `CONTEÚDO DO DOCUMENTO:\n${docxResult.value}\n\n${material}`;
+          const extractedText = docxResult.value?.trim() || '';
+
+          if (extractedText.length < 80) {
+            // Texto muito curto = extração falhou (DOCX com imagens, PDF renomeado, etc.)
+            setError(
+              'Não foi possível ler o conteúdo do arquivo. O documento pode conter apenas imagens, ' +
+              'estar protegido, ou ser um PDF renomeado como .docx. Por favor, cole o texto das questões manualmente no campo abaixo.'
+            );
+            setLoading(false);
+            return;
+          }
+
+          contextMaterial = `QUESTÕES DA PROVA ORIGINAL (extraídas do documento):\n${extractedText}\n\n${material ? `INSTRUÇÕES ADICIONAIS DO PROFESSOR:\n${material}` : ''}`;
         } else if (fileExtension === 'txt') {
           const txtContent = await file.text();
-          contextMaterial = `CONTEÚDO DO ARQUIVO:\n${txtContent}\n\n${material}`;
+          contextMaterial = `QUESTÕES DA PROVA ORIGINAL (extraídas do arquivo):\n${txtContent}\n\n${material ? `INSTRUÇÕES ADICIONAIS DO PROFESSOR:\n${material}` : ''}`;
         } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
           fileType = file.type;
           fileBase64 = await new Promise<string>((resolve) => {
@@ -123,6 +135,13 @@ export default function Home() {
             reader.readAsDataURL(file);
           });
         }
+      }
+
+      // Validar se há algum material para trabalhar
+      if (!contextMaterial?.trim() && !fileBase64) {
+        setError('Por favor, cole o texto da prova ou anexe um arquivo antes de gerar a adaptação.');
+        setLoading(false);
+        return;
       }
 
       const response = await fetch('/api/generate', {
