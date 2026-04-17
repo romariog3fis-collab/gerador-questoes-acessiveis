@@ -4,6 +4,77 @@ const GROQ_API_URL  = 'https://api.groq.com/openai/v1/chat/completions';
 const PRIMARY_MODEL = 'llama-3.3-70b-versatile';
 const SMALL_MODEL   = 'llama-3.1-8b-instant';
 
+// ── Pré-processador de material ────────────────────────────────────────────
+// Reduz tokens em ~40-60% removendo ruído antes de enviar para a IA
+function preprocessMaterial(raw: string): string {
+  if (!raw || raw.length < 50) return raw;
+
+  // 1. Normalizar quebras de linha e espaços
+  let text = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')          // múltiplos espaços → 1 espaço
+    .replace(/\n{3,}/g, '\n\n');      // mais de 2 quebras → 2
+
+  // 2. Remover cabeçalhos típicos de prova (escola, data, nome, turma, valor)
+  const headerPatterns = [
+    /^.{0,120}(escola|colégio|instituto|s\.?e\.?m\.?|secretaria).{0,120}$/im,
+    /^.{0,120}(professor[ao]?:|prof\.?:|docente:).{0,120}$/im,
+    /^.{0,120}(data:|turma:|série:|ano:|bimestre:|período:|valor:).{0,120}$/im,
+    /^.{0,120}(nome[:\s_\.]+){1,2}$/im,
+    /^.{0,120}(assinatura[:\s_]+)$/im,
+    /^.{0,120}(avalia[çc][aã]o|prova|teste|exame)[^:]*$/im,
+    /^.{0,50}(\d{1,2}\/\d{1,2}\/\d{2,4}).{0,50}$/im,
+  ];
+  const lines = text.split('\n');
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) return true; // manter linhas em branco (separadores)
+    if (trimmed.length < 5) return false;  // linhas muito curtas são ruído
+    // Remover linhas que casam com padrões de cabeçalho nas primeiras 15 linhas
+    const idx = lines.indexOf(line);
+    if (idx < 15) {
+      return !headerPatterns.some(p => p.test(trimmed));
+    }
+    return true;
+  });
+  text = filteredLines.join('\n');
+
+  // 3. Remover rodapés comuns
+  const footerPatterns = [
+    /bons estudos[!.]*/gi,
+    /boa sorte[!.]*/gi,
+    /responda com atenção.*/gi,
+    /leia atentamente as questões.*/gi,
+    /use a folha de rascunho.*/gi,
+    /não é permitido.*/gi,
+    /proibido o uso de.*/gi,
+  ];
+  footerPatterns.forEach(p => { text = text.replace(p, ''); });
+
+  // 4. Remover linhas de preenchimento (__ _ _ __ / --- / === / ...)
+  text = text.replace(/^[\s_\-=\.]{5,}$/gm, '');
+
+  // 5. Remoção de pontuações repetidas ex: "................  2,0 pts"
+  text = text.replace(/\.{4,}/g, ' ');
+  text = text.replace(/-{4,}/g, ' ');
+
+  // 6. Comprimir resultado final
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+
+  // 7. Limite de segurança: ~5.500 caracteres (~1.375 tokens)
+  if (text.length > 5500) {
+    text = text.slice(0, 5500) + '\n[...material truncado para otimização...]';
+  }
+
+  return text;
+}
+
+// Estima quantidade de tokens (aprox: 1 token ≈ 4 chars em pt-BR)
+function estimateTokens(text: string) {
+  return Math.round(text.length / 4);
+}
+
 export async function POST(req: Request) {
   try {
     const {
@@ -108,6 +179,11 @@ ${JSON.stringify(questionToRefine, null, 2)}
 AÇÃO: ${refinementAction}`;
 
     } else {
+      // ── Pré-processar material para reduzir tokens ─────────────────────
+      const cleanMaterial = preprocessMaterial(material || '');
+      const estTokens = estimateTokens(cleanMaterial);
+      console.log(`[Route] Material: ${(material||'').length} chars → ${cleanMaterial.length} chars (~${estTokens} tokens após limpeza)`);
+
       // ── Geração principal ─────────────────────────────────────────────
       userPrompt = `Adapte o material abaixo para uma avaliação inclusiva.
 
@@ -121,7 +197,7 @@ ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
 Taxonomia de Bloom: priorize níveis Lembrar, Entender e Aplicar.
 
 === MATERIAL ORIGINAL ===
-${(material || '').slice(0, 6000)}
+${cleanMaterial}
 
 === ADAPTAÇÕES SOLICITADAS ===
 ${adaptacoes || 'Adaptação geral inclusiva.'}`;
