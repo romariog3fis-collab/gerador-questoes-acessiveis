@@ -196,18 +196,25 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error('Falha ao refinar no servidor.');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao refinar no servidor. Tente novamente.');
       }
 
-      const refinedQuestion = await response.json() as Question;
+      const refinedData = await response.json();
+      // A API pode retornar a questão diretamente ou dentro de { questions: [...] }
+      const refinedQuestion: Question = refinedData.questions?.[0] ?? refinedData;
+
+      if (!refinedQuestion?.id && !refinedQuestion?.content) {
+        throw new Error('Resposta inválida da IA. Tente refinar novamente.');
+      }
 
       setResultado({
         ...resultado,
-        questions: resultado.questions.map(q => q.id === id ? refinedQuestion : q)
+        questions: resultado.questions.map(q => q.id === id ? { ...refinedQuestion, id } : q)
       });
     } catch (err: any) {
-      console.error(err);
-      setError(err?.message || 'Erro ao refinar a questão.');
+      console.error('[Refine]', err);
+      setError(err?.message || 'Erro ao refinar a questão. Tente novamente.');
     } finally {
       setRefiningId(null);
     }
