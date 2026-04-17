@@ -148,9 +148,6 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
     };
 
     // ── Função de chamada Gemini ──────────────────────────────────────────
-    // Suporta dois formatos de chave:
-    // - "AIza..." (formato antigo) → enviada como ?key= na URL
-    // - "AQ...." (formato OAuth moderno do AI Studio) → enviada como Bearer token
     const callGemini = async () => {
       if (!geminiKey) return null;
 
@@ -164,39 +161,22 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
         },
       });
 
-      const isOAuthKey = !geminiKey.startsWith('AIza');
-      const signal = AbortSignal.timeout(12000); // 12s timeout
+      // Tenta x-goog-api-key (formato moderno recomendado pelo Google — funciona com AIza e AQ.)
+      const res = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiKey,
+        },
+        body,
+      });
 
-      if (isOAuthKey) {
-        // Chave OAuth moderna (AQ. ...) → Bearer token no header
-        const res = await fetch(GEMINI_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${geminiKey}`,
-          },
-          body,
-          signal,
-        });
-        // Se 401, tenta também como ?key= por segurança
-        if (res.status === 401) {
-          console.warn('[Gemini] Bearer falhou (401), tentando ?key= ...');
-          return fetch(`${GEMINI_URL}?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body,
-          });
-        }
-        return res;
-      } else {
-        // Chave API tradicional (AIza...) → query param
-        return fetch(`${GEMINI_URL}?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-          signal,
-        });
+      if (!res.ok) {
+        const errBody = await res.clone().json().catch(() => ({}));
+        console.error(`[Gemini] x-goog-api-key falhou (${res.status}):`, JSON.stringify(errBody).slice(0, 400));
       }
+
+      return res;
     };
 
     // ── Extrai texto da resposta conforme o provedor ──────────────────────
