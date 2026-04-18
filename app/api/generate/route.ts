@@ -103,29 +103,41 @@ export async function POST(req: Request) {
     const imgField = gerarImagensIA ? `"imagePrompt":"descrição de ilustração didática",` : '';
     const imgNote  = gerarImagensIA ? '' : 'NÃO inclua o campo imagePrompt.';
 
-    const systemPrompt = `Você é especialista em educação inclusiva. Sua única função é ADAPTAR questões existentes.
+    const systemPrompt = `Você é um gerador de avaliações e especialista em educação inclusiva. Aja sob regras rígidas:
  
  REGRA Nº1: USE SOMENTE o conteúdo do material fornecido. É PROIBIDO inventar conteúdo extra.
  REGRA Nº2: Responda APENAS com JSON válido.
- 
- SCHEMA da questão:
+ REGRA Nº3: Respeite a cota de questões e o formato (type) exigido.
+
+ SCHEMA GERAL DO JSON DE RETORNO:
  {
-   "id":"q1",
-   "originalNumber":"1",
-   "type":"multiple_choice|essay|true_false|fill_blanks|match_columns",
-   "content":"enunciado adaptado. Use LaTeX para fórmulas: $...$ (inline) ou $$...$$ (bloco).",
-   "options":[{"letter":"A","text":"texto ou fórumla LaTeX"}], 
-   "assertions":[{"text":"afirmação (apenas para true_false)", "isTrue": true}],                           
-   "blanks":["res1","res2","res3"],          
-   "pairs":[{"left":"item1","right":"corresp1"}], 
-   "answer":"resultado correto (pode ser LaTeX)",
-   "justification":"breve explicação",
-   ${imgField}
-   "glossary":[{"word":"...","meaning":"..."}],
-   "steps":["passo 1"]
+   "title":"Título da Avaliação",
+   "studentInfo":true,
+   "overallAEEInfo":"Breve resumo das adaptações feitas",
+   "questions":[
+      // ... Objetos de questão formatados estritamente conforme as estruturas abaixo ...
+   ]
  }
+
+ ─── MOLDES OBRIGATÓRIOS PARA CADA TIPO DE QUESTÃO ───
  
- Retorne: {"title":"...","studentInfo":true,"overallAEEInfo":"resumo das adaptações","questions":[...]}`;
+ 1. FORMATO PARA MÚLTIPLA ESCOLHA (multiple_choice):
+ {"id":"q1","originalNumber":"1","type":"multiple_choice","content":"enunciado adaptado. Use LaTeX para fórmulas: $...$","options":[{"letter":"A","text":"texto"}], "answer":"resultado correto", "justification":"explicação", ${imgField} "glossary":[{"word":"...","meaning":"..."}]}
+ 
+ 2. FORMATO PARA VERDADEIRO OU FALSO (true_false):
+ {"id":"q2","originalNumber":"2","type":"true_false","content":"enunciado adaptado","assertions":[{"text":"afirmação independente", "isTrue": true}], "answer":"V e F...", "justification":"explicação", ${imgField} "glossary":[]}
+
+ 3. FORMATO PARA COMPLETAR LACUNAS (fill_blanks):
+ {"id":"q3","originalNumber":"3","type":"fill_blanks","content":"enunciado","blanks":["resposta 1","resposta 2"], "answer":"...","justification":"...", ${imgField} "glossary":[]}
+
+ 4. FORMATO PARA RELACIONAR COLUNAS (match_columns):
+ {"id":"q4","originalNumber":"4","type":"match_columns","content":"enunciado","pairs":[{"left":"item da esquerda","right":"item da direita"}], "answer":"...","justification":"...", ${imgField} "glossary":[]}
+
+ 5. FORMATO PARA DISCURSIVAS (essay):
+ {"id":"q5","originalNumber":"5","type":"essay","content":"enunciado","answer":"chave de correção esperada","justification":"...", ${imgField} "glossary":[]}
+ 
+ NOTA: Em TODAS as questões, o campo "glossary" é opcional.
+`;
 
     let userPrompt = '';
 
