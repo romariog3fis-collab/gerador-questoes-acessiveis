@@ -337,9 +337,9 @@ export default function Home() {
             ${questionBody}
             ${q.imagePrompt ? '<div style="margin: 20px 0; border: 1px solid #e2e8f0; padding: 15px; background: #f8fafc; color: #64748b; font-size: 11px;"><b>ILUSTRAÇÃO SUGERIDA:</b> ' + q.imagePrompt + '</div>' : ''}
             <div style="margin-top: 20px; background-color: #f1f5f9; padding: 15px; font-size: 10px; border-radius: 8px;">
-              <b style="color: #0f172a;">GABARITO:</b> ${q.type === 'true_false' ? (q.assertions && q.assertions.length > 0 ? q.assertions.map((a:any) => a.isTrue ? 'V' : 'F').join(' - ') : (q.isTrue ? 'V' : 'F')) : q.answer}<br>
+              <b style="color: #0f172a;">GABARITO:</b> ${q.type === 'true_false' ? (q.assertions && q.assertions.length > 0 ? q.assertions.map((a:any) => a.isTrue ? 'V' : 'F').join(' - ') : (q.isTrue ? 'V' : 'F')) : mdToHtml(q.answer || '')}<br>
               ${q.type === 'fill_blanks' && q.blanks ? '<b>LACUNAS:</b> ' + q.blanks.join(', ') + '<br>' : ''}
-              <b style="color: #0f172a;">JUSTIFICATIVA:</b> ${q.justification}
+              <b style="color: #0f172a;">JUSTIFICATIVA:</b> ${mdToHtml(q.justification || '')}
             </div>
           </div>
         `;
