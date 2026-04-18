@@ -12,11 +12,13 @@ import { Question } from '../types';
 
 interface QuestionCardProps {
   question: Question;
+  index: number;
+  caixaAlta?: boolean;
   onRefine: (id: string, action: 'simplify' | 'accessible' | 'change_type') => void;
   refiningId?: string | null;
 }
 
-const QuestionCard: React.FC<QuestionCardProps> = ({ question, onRefine, refiningId }) => {
+const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, caixaAlta, onRefine, refiningId }) => {
   const [showGabarito, setShowGabarito] = useState(false);
   const isRefining = refiningId === question.id;
 
@@ -45,7 +47,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, onRefine, refinin
       <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-900 font-bold">
-            {question.originalNumber}
+            {question.originalNumber || index + 1}
           </div>
           <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider ${bloomColor(question.bloomLevel)}`}>
             Taxonomia: {question.bloomLevel}
@@ -58,7 +60,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, onRefine, refinin
 
       {/* Conteúdo da Questão */}
       <div className="p-8">
-        <div className="prose prose-slate max-w-none prose-p:leading-relaxed prose-strong:text-blue-600">
+        <div className={`prose prose-slate max-w-none prose-p:leading-relaxed ${caixaAlta ? 'prose-strong:bg-yellow-200 prose-strong:px-1 prose-strong:rounded' : 'prose-strong:text-blue-600'}`}>
           <ReactMarkdown 
             remarkPlugins={[remarkGfm, remarkMath]} 
             rehypePlugins={[rehypeKatex]}

@@ -255,24 +255,62 @@ export default function Home() {
     setLoading(true);
 
     try {
+      // Conversor simples de Markdown para HTML básico (Negrito e Sublinhado)
+      const mdToHtml = (text: string) => {
+        let result = text || '';
+        // Converte **texto** para <b><u>TEXTO</u></b> se for Caixa Alta, senão <b>texto</b>
+        if (caixaAlta) {
+          result = result.replace(/\*\*(.*?)\*\*/g, '<b><u>$1</u></b>');
+        } else {
+          result = result.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        }
+        return result.replace(/\n/g, '<br>');
+      };
+
       // Gerar HTML limpo para o Word
       let docHtml = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
           <h1 style="text-align: center; color: #1e293b;">${resultado.title}</h1>
           ${resultado.studentInfo ? '<div style="border: 1px solid #cbd5e1; padding: 10px; margin-bottom: 20px;">Nome: ____________________________________ Data: ___/___/___</div>' : ''}
-          <p style="color: #64748b; font-size: 10px; text-transform: uppercase;">${resultado.overallAEEInfo || ''}</p>
-          <hr />
+          <p style="color: #64748b; font-size: 10px; text-transform: uppercase; font-weight: bold;">ADAPTAÇÕES: ${selectedProfiles.join(', ')} | ${resultado.overallAEEInfo || ''}</p>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
       `;
 
-      resultado.questions.forEach(q => {
+      resultado.questions.forEach((q, index) => {
+        let questionBody = `<div style="margin-bottom: 10px;">${mdToHtml(q.content)}</div>`;
+
+        // Renderização Extra por Tipo no Word
+        if (q.type === 'multiple_choice' && q.options) {
+          questionBody += '<div style="margin-left: 20px; margin-bottom: 10px;">';
+          q.options.forEach(opt => {
+            questionBody += `<p>(${opt.letter}) ${mdToHtml(opt.text)}</p>`;
+          });
+          questionBody += '</div>';
+        } else if (q.type === 'true_false') {
+          questionBody += '<div style="margin-left: 20px; margin-bottom: 10px;">( &nbsp; ) Verdadeiro &nbsp;&nbsp; ( &nbsp; ) Falso</div>';
+        } else if (q.type === 'fill_blanks' && q.blanks) {
+          questionBody += '<div style="margin-top: 10px; border: 1px dashed #cbd5e1; padding: 10px; font-size: 11px; color: #64748b;">ESPAÇO PARA COMPLETAR: ' + q.blanks.map(() => '________________').join(', ') + '</div>';
+        } else if (q.type === 'match_columns' && q.pairs) {
+          questionBody += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
+          q.pairs.forEach((p, i) => {
+            questionBody += `<tr>
+              <td style="width: 45%; border: 1px solid #e2e8f0; padding: 8px;">(${i+1}) ${mdToHtml(p.left)}</td>
+              <td style="width: 10%; text-align: center;"> --- </td>
+              <td style="width: 45%; border: 1px solid #e2e8f0; padding: 8px;">( &nbsp; ) ${mdToHtml(p.right)}</td>
+            </tr>`;
+          });
+          questionBody += '</table>';
+        }
+
         docHtml += `
-          <div style="margin-bottom: 30px; page-break-inside: avoid;">
-            <h3 style="color: #0f172a;">Questão ${q.originalNumber}</h3>
-            <div style="color: #334155;">${q.content.replace(/\n/g, '<br>')}</div>
-            ${q.imagePrompt ? '<div style="margin: 20px 0; font-style: italic; color: #94a3b8;">[Espaço para Imagem: ' + q.imagePrompt + ']</div>' : ''}
-            <div style="margin-top: 15px; background-color: #f8fafc; padding: 10px; font-size: 11px;">
-              <strong>Gabarito:</strong> ${q.answer}<br>
-              <strong>Justificativa:</strong> ${q.justification}
+          <div style="margin-bottom: 40px; page-break-inside: avoid;">
+            <h3 style="color: #0f172a; margin-bottom: 10px;">Questão ${q.originalNumber || index + 1}</h3>
+            ${questionBody}
+            ${q.imagePrompt ? '<div style="margin: 20px 0; border: 1px solid #e2e8f0; padding: 15px; background: #f8fafc; color: #64748b; font-size: 11px;"><b>ILUSTRAÇÃO SUGERIDA:</b> ' + q.imagePrompt + '</div>' : ''}
+            <div style="margin-top: 20px; background-color: #f1f5f9; padding: 15px; font-size: 10px; border-radius: 8px;">
+              <b style="color: #0f172a;">GABARITO:</b> ${q.type === 'true_false' ? (q.isTrue ? 'V' : 'F') : q.answer}<br>
+              ${q.type === 'fill_blanks' && q.blanks ? '<b>LACUNAS:</b> ' + q.blanks.join(', ') + '<br>' : ''}
+              <b style="color: #0f172a;">JUSTIFICATIVA:</b> ${q.justification}
             </div>
           </div>
         `;
@@ -444,10 +482,12 @@ export default function Home() {
                   )}
 
                   <div className="space-y-8" ref={resultRef}>
-                    {resultado.questions.map((q) => (
+                    {resultado.questions.map((q, idx) => (
                       <QuestionCard 
                         key={q.id} 
                         question={q} 
+                        index={idx}
+                        caixaAlta={caixaAlta}
                         onRefine={refineQuestion}
                         refiningId={refiningId}
                       />

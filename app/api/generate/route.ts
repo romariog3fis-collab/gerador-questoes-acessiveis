@@ -57,20 +57,20 @@ export async function POST(req: Request) {
       const parts: string[] = [];
       if (qTypes.multipleChoice?.enabled) {
         const qty = qTypes.multipleChoice.quantity;
-        const alts = qTypes.multipleChoice.alternatives || 4;
-        parts.push(`Múltipla Escolha (type="multiple_choice") -> ${qty > 0 ? qty : 'mesmo do material'} questões com EXATAMENTE ${alts} alternativas (A B C...)`);
+        const alts = Math.max(3, qTypes.multipleChoice.alternatives || 4);
+        parts.push(`Múltipla Escolha (type="multiple_choice") -> ${qty > 0 ? qty : 'mesmo do material'} questões com EXATAMENTE ${alts} alternativas (no mínimo 3: A B C)`);
       }
       if (qTypes.trueFalse?.enabled) {
         const qty = qTypes.trueFalse.quantity;
-        parts.push(`Verdadeiro/Falso (type="true_false") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
+        parts.push(`Verdadeiro/Falso (type="true_false") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: cada questão deve ter pelo menos 3 afirmações (assertivas).`);
       }
       if (qTypes.fillBlanks?.enabled) {
         const qty = qTypes.fillBlanks.quantity;
-        parts.push(`Completar Lacunas (type="fill_blanks") -> ${qty > 0 ? qty : 'mesmo do material'} questões (use ___ no enunciado)`);
+        parts.push(`Completar Lacunas (type="fill_blanks") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: cada questão deve ter pelo menos 3 lacunas (___).`);
       }
       if (qTypes.matchColumns?.enabled) {
         const qty = qTypes.matchColumns.quantity;
-        parts.push(`Relacionar Colunas (type="match_columns") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
+        parts.push(`Relacionar Colunas (type="match_columns") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: pelo menos 3 associações (links) por questão.`);
       }
       if (qTypes.essay?.enabled) {
         const qty = qTypes.essay.quantity;
@@ -94,12 +94,13 @@ export async function POST(req: Request) {
  SCHEMA da questão:
  {
    "id":"q1",
+   "originalNumber":"1",
    "type":"multiple_choice|essay|true_false|fill_blanks|match_columns",
    "content":"enunciado (use ___ para fill_blanks)",
-   "options":[{"letter":"A","text":"..."}],  // para multiple_choice
+   "options":[{"letter":"A","text":"..."}],  // para multiple_choice (mínimo 3)
    "isTrue": true,                           // para true_false
-   "blanks":["res1","res2"],                 // para fill_blanks
-   "pairs":[{"left":"item1","right":"corresp1"}], // para match_columns
+   "blanks":["res1","res2","res3"],          // para fill_blanks (mínimo 3)
+   "pairs":[{"left":"item1","right":"corresp1"}], // para match_columns (mínimo 3)
    "answer":"resultado correto",
    "justification":"breve explicação",
    ${imgField}
@@ -132,6 +133,7 @@ ${perfis.length ? perfis.map(p => '  • ' + p).join('\n') : '  • Adaptação 
 ESTILOS: ${estilos}
 ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
 Taxonomia de Bloom: priorize Lembrar, Entender e Aplicar.
+  MARCAÇÃO: Use **negrito** (asteriscos duplos) para destacar termos e conceitos fundamentais.
 
 === MATERIAL ORIGINAL (adapte SOMENTE este conteúdo) ===
 ${(material || '').slice(0, 8000)}
