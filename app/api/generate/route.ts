@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_PRIMARY = 'llama-3.3-70b-versatile';
 const GROQ_SMALL   = 'llama-3.1-8b-instant';
+const GROQ_TERTIARY = 'mixtral-8x7b-32768';
 const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
 
 export async function POST(req: Request) {
@@ -179,23 +180,27 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
       return res;
     };
 
-    // ── Função de chamada Gemini ──────────────────────────────────────────
+    // ── Função de chamada Gemini (com Visão) ─────────────────────────────
     const callGemini = async () => {
       if (!geminiKey) return null;
 
-      // Gemini API v1 não suporta "systemInstruction" nem "responseMimeType"
-      // → mesclamos o system prompt no conteúdo do usuário
-      const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      const parts: any[] = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
+      
+      // Se houver arquivo, envia a imagem para o Gemini analisar
+      if (fileBase64) {
+        const [meta, data] = fileBase64.split(',');
+        const mime = meta.split(':')[1].split(';')[0];
+        parts.push({ inline_data: { mime_type: mime, data } });
+      }
 
       const body = JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }],
+        contents: [{ role: 'user', parts }],
         generationConfig: {
           temperature: 0.35,
           maxOutputTokens: 5000,
         },
       });
 
-      // Usa ?key= na URL (método mais compatível com todos os formatos de chave)
       const res = await fetch(`${GEMINI_URL}?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -229,24 +234,28 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
 
     // Tentativa 1: Groq 70B
     if (groqKey && !rawText) {
-      const res1 = await callGroq(GROQ_PRIMARY, 5000);
-      if (res1 && res1.ok) {
-        rawText = await extractText(res1, 'groq');
-        if (rawText) console.log('[Route] Respondido por Groq 70B');
-      } else if (res1) {
-        const status1 = res1.status;
-        console.warn(`[Groq 70B] Status ${status1} — tentando fallback`);
-
-        // Tentativa 2: Groq 8B (só se o erro for de carga/limite, não auth)
-        if ([400, 429, 503].includes(status1)) {
+      try {
+        const res1 = await callGroq(GROQ_PRIMARY, 5000);
+        if (res1 && res1.ok) {
+          rawText = await extractText(res1, 'groq');
+        } else if (res1) {
+          console.warn(`[Groq 70B] Status ${res1.status} — tentando infra reserva (8B)`);
+          
+          // Tentativa 2: Groq 8B
           const res2 = await callGroq(GROQ_SMALL, 4000);
           if (res2 && res2.ok) {
             rawText = await extractText(res2, 'groq');
-            if (rawText) console.log('[Route] Respondido por Groq 8B (fallback)');
           } else {
-            console.warn(`[Groq 8B] Status ${res2?.status} — escalando para Gemini`);
+             // Tentativa 2.5: Mixtral (Groq)
+             console.warn(`[Groq 8B] Status ${res2?.status} — tentando Mixtral`);
+             const resM = await callGroq(GROQ_TERTIARY, 4000);
+             if (resM && resM.ok) {
+               rawText = await extractText(resM, 'groq');
+             }
           }
         }
+      } catch (err) {
+        console.error('[Groq] Falha de conexão/timeout:', err);
       }
     }
 
