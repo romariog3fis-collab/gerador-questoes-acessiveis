@@ -26,7 +26,8 @@ export interface Question {
   // Campos para novos tipos
   pairs?: { left: string; right: string }[]; // match_columns
   blanks?: string[]; // fill_blanks (respostas corretas na ordem)
-  isTrue?: boolean; // true_false
+  isTrue?: boolean; // true_false (legado)
+  assertions?: { text: string; isTrue: boolean }[]; // true_false (novo)
   answer: string;
   justification: string;
   glossary?: { word: string; meaning: string }[];
