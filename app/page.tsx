@@ -351,6 +351,7 @@ export default function Home() {
                 setIncluirDescricaoVisual={setIncluirDescricaoVisual}
                 gerarImagensIA={gerarImagensIA}
                 setGerarImagensIA={setGerarImagensIA}
+                adaptacoes={adaptacoes}
                 setAdaptacoes={setAdaptacoes}
                 selectedProfiles={selectedProfiles}
                 setSelectedProfiles={setSelectedProfiles}
