@@ -10,6 +10,8 @@ const GROQ_SMALL   = 'llama-3.1-8b-instant';
 const GROQ_TERTIARY = 'mixtral-8x7b-32768';
 const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
 
+export const runtime = 'edge';
+
 export async function POST(req: Request) {
   try {
     const {
@@ -86,6 +88,9 @@ export async function POST(req: Request) {
       2. NUNCA ignore as quantidades solicitadas acima.`);
       
       instrucaoTipos = parts.length > 0 ? parts.join('\n') : 'Adapte as questões existentes mantendo seus formatos originais.';
+    } else {
+      instrucaoTipos = 'Adapte o mesmo número de questões que o material original contém.';
+    }
 
     // ── Prompts ───────────────────────────────────────────────────────────
     const imgField = gerarImagensIA ? `"imagePrompt":"descrição de ilustração didática",` : '';
