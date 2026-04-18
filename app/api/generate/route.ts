@@ -10,8 +10,8 @@ const GROQ_SMALL   = 'llama-3.1-8b-instant';
 const GROQ_TERTIARY = 'mixtral-8x7b-32768';
 const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
 
-export const runtime = 'edge';
-
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const {
