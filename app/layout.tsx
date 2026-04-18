@@ -1,6 +1,7 @@
 import type {Metadata} from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css'; // Global styles
+import 'katex/dist/katex.min.css';
 import { AuthProvider, AuthWrapper } from '../src/components/AuthWrapper';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 

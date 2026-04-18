@@ -96,12 +96,12 @@ export async function POST(req: Request) {
    "id":"q1",
    "originalNumber":"1",
    "type":"multiple_choice|essay|true_false|fill_blanks|match_columns",
-   "content":"enunciado (use ___ para fill_blanks)",
-   "options":[{"letter":"A","text":"..."}],  // para multiple_choice (mínimo 3)
-   "isTrue": true,                           // para true_false
-   "blanks":["res1","res2","res3"],          // para fill_blanks (mínimo 3)
-   "pairs":[{"left":"item1","right":"corresp1"}], // para match_columns (mínimo 3)
-   "answer":"resultado correto",
+   "content":"enunciado adaptado. Use LaTeX para fórmulas: $...$ (inline) ou $$...$$ (bloco).",
+   "options":[{"letter":"A","text":"texto ou fórumla LaTeX"}], 
+   "isTrue": true,                           
+   "blanks":["res1","res2","res3"],          
+   "pairs":[{"left":"item1","right":"corresp1"}], 
+   "answer":"resultado correto (pode ser LaTeX)",
    "justification":"breve explicação",
    ${imgField}
    "glossary":[{"word":"...","meaning":"..."}],
@@ -132,8 +132,15 @@ ${perfis.length ? perfis.map(p => '  • ' + p).join('\n') : '  • Adaptação 
 
 ESTILOS: ${estilos}
 ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
-Taxonomia de Bloom: priorize Lembrar, Entender e Aplicar.
+  Taxonomia de Bloom: priorize Lembrar, Entender e Aplicar.
   MARCAÇÃO: Use **negrito** (asteriscos duplos) para destacar termos e conceitos fundamentais.
+  
+  === MATEMÁTICA E GEOMETRIA (CONDIÇÕES ESPECIAIS) ===
+  - Use LaTeX para TODAS as fórmulas: $\\frac{a}{b}$, $x^2$, $\\sqrt{x}$, $\\sin(x)$, $\\log(x)$, matrizes $\\begin{matrix}...\\end{matrix}$.
+  - ANALISE A IMAGEM ORIGINAL: Se houver um triângulo, círculo, gráfico ou figura geométrica:
+    1. Descreva-a detalhadamente no 'content' (Audiodescrição Pedagógica).
+    2. Se a figura for essencial, sugira no 'content' que o aluno consulte a 'Figura Original'.
+    3. Se desejar uma versão simplificada, use 'imagePrompt' para descrever o diagrama técnico desejado.
 
 === MATERIAL ORIGINAL (adapte SOMENTE este conteúdo) ===
 ${(material || '').slice(0, 8000)}

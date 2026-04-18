@@ -258,6 +258,27 @@ export default function Home() {
       // Conversor simples de Markdown para HTML básico (Negrito e Sublinhado)
       const mdToHtml = (text: string) => {
         let result = text || '';
+        
+        // Limpeza básica de LaTeX para o Word (substitui comandos comuns por texto legível)
+        result = result.replace(/\\frac\{(.*?)\}\{(.*?)\}/g, '($1/$2)');
+        result = result.replace(/\\sqrt\{(.*?)\}/g, '√($1)');
+        result = result.replace(/\^\{(.*?)\}/g, '<sup>$1</sup>');
+        result = result.replace(/\_\{(.*?)\}/g, '<sub>$1</sub>');
+        result = result.replace(/\\cdot/g, '·');
+        result = result.replace(/\\times/g, '×');
+        result = result.replace(/\\pm/g, '±');
+        result = result.replace(/\\degree/g, '°');
+        result = result.replace(/\\infty/g, '∞');
+        result = result.replace(/\\approx/g, '≈');
+        result = result.replace(/\\ne/g, '≠');
+        result = result.replace(/\\le/g, '≤');
+        result = result.replace(/\\ge/g, '≥');
+        result = result.replace(/\\sin/g, 'sen');
+        result = result.replace(/\\cos/g, 'cos');
+        result = result.replace(/\\tan/g, 'tan');
+        result = result.replace(/\\log/g, 'log');
+        result = result.replace(/[\$\x22]/g, ''); // Remove cifrões e aspas de escape
+
         // Converte **texto** para <b><u>TEXTO</u></b> se for Caixa Alta, senão <b>texto</b>
         if (caixaAlta) {
           result = result.replace(/\*\*(.*?)\*\*/g, '<b><u>$1</u></b>');

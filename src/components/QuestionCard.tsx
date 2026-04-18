@@ -77,7 +77,14 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, caixaAlta,
               {question.options.map((opt) => (
                 <div key={opt.letter} className="flex gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/30">
                   <span className="font-black text-blue-600 w-5">{opt.letter})</span>
-                  <span className="text-sm border-l border-slate-200 pl-3">{opt.text}</span>
+                  <div className="text-sm border-l border-slate-200 pl-3 overflow-x-auto">
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm, remarkMath]} 
+                      rehypePlugins={[rehypeKatex]}
+                    >
+                      {opt.text}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               ))}
             </div>
@@ -113,8 +120,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, caixaAlta,
               <div className="space-y-3">
                 {question.pairs.map((p, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                    <span className="w-6 h-6 flex items-center justify-center bg-slate-900 text-white rounded-lg text-[10px] font-black">{i + 1}</span>
-                    <span className="text-xs font-medium">{p.left}</span>
+                    <span className="w-6 h-6 flex items-center justify-center bg-slate-900 text-white rounded-lg text-[10px] font-black shrink-0">{i + 1}</span>
+                    <div className="text-xs font-medium overflow-x-auto">
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {p.left}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -122,8 +133,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, caixaAlta,
                 {/* Embaralha as respostas para o aluno relacionar */}
                 {[...question.pairs].sort(() => Math.random() - 0.5).map((p, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                    <span className="w-6 h-6 border-2 border-slate-200 bg-white rounded-lg" />
-                    <span className="text-xs font-medium text-slate-600">{p.right}</span>
+                    <span className="w-6 h-6 border-2 border-slate-200 bg-white rounded-lg shrink-0" />
+                    <div className="text-xs font-medium text-slate-600 overflow-x-auto">
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {p.right}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -197,9 +212,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, caixaAlta,
                       <Sparkles size={14} />
                     </div>
                     <div>
-                      <p className="text-sm font-black text-emerald-900 leading-tight">
-                        Resposta: {question.type === 'true_false' ? (question.isTrue ? 'Verdadeiro' : 'Falso') : question.answer}
-                      </p>
+                      <div className="text-sm font-black text-emerald-900 leading-tight flex items-center gap-1">
+                        Resposta: 
+                        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                          {question.type === 'true_false' ? (question.isTrue ? 'Verdadeiro' : 'Falso') : (question.answer || '')}
+                        </ReactMarkdown>
+                      </div>
                       {question.type === 'fill_blanks' && question.blanks && (
                         <p className="text-[11px] font-bold text-emerald-700 mt-1">
                           Lacunas: {question.blanks.join(', ')}
