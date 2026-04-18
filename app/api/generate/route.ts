@@ -58,34 +58,41 @@ export async function POST(req: Request) {
     
     if (qTypes) {
       const parts: string[] = [];
+      let totalRequested = 0;
+      
       if (qTypes.multipleChoice?.enabled) {
-        const qty = qTypes.multipleChoice.quantity;
+        const qty = qTypes.multipleChoice.quantity || 1;
+        totalRequested += qty;
         const alts = Math.max(3, qTypes.multipleChoice.alternatives || 4);
-        parts.push(`Múltipla Escolha (type="multiple_choice") -> ${qty > 0 ? qty : 'mesmo do material'} questões com EXATAMENTE ${alts} alternativas (no mínimo 3: A B C)`);
+        parts.push(`- ${qty} questão(ões) de Múltipla Escolha (type="multiple_choice") com EXATAMENTE ${alts} alternativas (Ex: A, B, C, D)`);
       }
       if (qTypes.trueFalse?.enabled) {
-        const qty = qTypes.trueFalse.quantity;
-        parts.push(`Verdadeiro/Falso (type="true_false") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: preencha o array "assertions" com pelo menos 3 afirmações independentes.`);
+        const qty = qTypes.trueFalse.quantity || 1;
+        totalRequested += qty;
+        parts.push(`- ${qty} questão(ões) de Verdadeiro/Falso (type="true_false"). OBRIGATÓRIO: preencha o array "assertions" com pelo menos 3 afirmações independentes em CADA questão.`);
       }
       if (qTypes.fillBlanks?.enabled) {
-        const qty = qTypes.fillBlanks.quantity;
-        parts.push(`Completar Lacunas (type="fill_blanks") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: cada questão deve ter pelo menos 3 lacunas (___).`);
+        const qty = qTypes.fillBlanks.quantity || 1;
+        totalRequested += qty;
+        parts.push(`- ${qty} questão(ões) de Completar Lacunas (type="fill_blanks"). OBRIGATÓRIO: cada questão deve ter pelo menos 3 lacunas (___) e suas respostas listadas.`);
       }
       if (qTypes.matchColumns?.enabled) {
-        const qty = qTypes.matchColumns.quantity;
-        parts.push(`Relacionar Colunas (type="match_columns") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: pelo menos 3 associações (links) por questão.`);
+        const qty = qTypes.matchColumns.quantity || 1;
+        totalRequested += qty;
+        parts.push(`- ${qty} questão(ões) de Relacionar Colunas (type="match_columns"). OBRIGATÓRIO: pelo menos 4 pares (left e right) no array "pairs".`);
       }
       if (qTypes.essay?.enabled) {
-        const qty = qTypes.essay.quantity;
-        parts.push(`Discursivas (type="essay") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
+        const qty = qTypes.essay.quantity || 1;
+        totalRequested += qty;
+        parts.push(`- ${qty} questão(ões) Discursiva(s) (type="essay").`);
       }
       
-      parts.push(`\n⚠️ REGRA DE DISTRIBUIÇÃO OBRIGATÓRIA:
-      1. Se o material original tiver X questões e o usuário pediu Y questões:
-         - Se X = Y: Adapte cada questão original para um dos formatos solicitados (1 para 1).
-         - Se Y > X: Adapte as X originais e crie (Y-X) questões CORRELATAS baseadas rigorosamente nos mesmos fatos do material original.
-         - Se Y < X: Selecione as X questões mais centrais e adapte para os formatos desejados.
-      2. NUNCA ignore as quantidades solicitadas acima.`);
+      parts.push(`\n⚠️ ORDEM ESTRITA DE GERAÇÃO:
+      Você foi configurado para gerar EXATAMENTE ${totalRequested} questões no total, seguindo RIGOROSAMENTE a distribuição acima.
+      - Para bater essa cota, adapte as questões do MATERIAL ORIGINAL.
+      - Se a cota for MAIOR que o material original, crie questões correlatas do mesmo assunto.
+      - Se a cota for MENOR, escolha os pontos vitais.
+      NÃO ignore nenhuma das cotas (nem para mais, nem para menos).`);
       
       instrucaoTipos = parts.length > 0 ? parts.join('\n') : 'Adapte as questões existentes mantendo seus formatos originais.';
     } else {
