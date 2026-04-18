@@ -30,12 +30,12 @@ export async function POST(req: Request) {
 
     // ── Detecção de perfis NEE (Chips vindo da UI) ─────────────────────────
     const perfisMap: Record<string, string> = {
-      'TDAH': 'TDAH: enunciados ≤3 linhas, palavra-chave em **negrito**, alternativas curtas e distintas.',
-      'Dislexia': 'DISLEXIA: frases ≤15 palavras, listas com marcadores, glossário amplo.',
-      'Discalculia': 'DISCALCULIA: substitua cálculos por raciocínio qualitativo. Forneça resultado pronto quando inevitável.',
-      'Autismo': 'TEA: linguagem literal, sem metáforas, exemplos concretos, passo a passo de como responder.',
-      'Def. Visual': 'DEF. VISUAL: descreva textualmente tudo que seria visual.',
-      'Def. Intelectual': 'DEF. INTELECTUAL: frases ≤10 palavras, máx 2 alternativas (A/B), suporte visual intenso.'
+      'TDAH': 'TDAH: Priorize enunciados diretos e objetivos. Use negrito em palavras-chave. Evite distrações, mas mantenha o contexto necessário.',
+      'Dislexia': 'DISLEXIA: Use vocabulário simples e frases claras. Use listas com marcadores para organizar informações complexas.',
+      'Discalculia': 'DISCALCULIA: Foque no raciocínio lógico e conceitos qualitativos. Forneça fórmulas e resultados intermediários se o foco não for o cálculo puro.',
+      'Autismo': 'TEA: Linguagem literal e direta. Evite ironias ou metáforas. Explique claramente o comando da questão.',
+      'Def. Visual': 'DEF. VISUAL: Forneça audiodescrição precisa de gráficos, tabelas e figuras geométricas no enunciado.',
+      'Def. Intelectual': 'DEF. INTELECTUAL: Linguagem extremamente simples, frases curtas e foco em um único conceito por questão. Máximo 2 alternativas.'
     };
     
     const perfis = (selectedProfiles as string[] || []).map(p => perfisMap[p]).filter(Boolean);
@@ -77,10 +77,14 @@ export async function POST(req: Request) {
         parts.push(`Discursivas (type="essay") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
       }
       
+      parts.push(`\n⚠️ REGRA DE DISTRIBUIÇÃO OBRIGATÓRIA:
+      1. Se o material original tiver X questões e o usuário pediu Y questões:
+         - Se X = Y: Adapte cada questão original para um dos formatos solicitados (1 para 1).
+         - Se Y > X: Adapte as X originais e crie (Y-X) questões CORRELATAS baseadas rigorosamente nos mesmos fatos do material original.
+         - Se Y < X: Selecione as X questões mais centrais e adapte para os formatos desejados.
+      2. NUNCA ignore as quantidades solicitadas acima.`);
+      
       instrucaoTipos = parts.length > 0 ? parts.join('\n') : 'Adapte as questões existentes mantendo seus formatos originais.';
-    } else {
-      instrucaoTipos = 'Adapte o mesmo número de questões que o material original contém.';
-    }
 
     // ── Prompts ───────────────────────────────────────────────────────────
     const imgField = gerarImagensIA ? `"imagePrompt":"descrição de ilustração didática",` : '';
@@ -135,12 +139,11 @@ ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
   Taxonomia de Bloom: priorize Lembrar, Entender e Aplicar.
   MARCAÇÃO: Use **negrito** (asteriscos duplos) para destacar termos e conceitos fundamentais.
   
-  === MATEMÁTICA E GEOMETRIA (CONDIÇÕES ESPECIAIS) ===
-  - Use LaTeX para TODAS as fórmulas: $\\frac{a}{b}$, $x^2$, $\\sqrt{x}$, $\\sin(x)$, $\\log(x)$, matrizes $\\begin{matrix}...\\end{matrix}$.
-  - ANALISE A IMAGEM ORIGINAL: Se houver um triângulo, círculo, gráfico ou figura geométrica:
-    1. Descreva-a detalhadamente no 'content' (Audiodescrição Pedagógica).
-    2. Se a figura for essencial, sugira no 'content' que o aluno consulte a 'Figura Original'.
-    3. Se desejar uma versão simplificada, use 'imagePrompt' para descrever o diagrama técnico desejado.
+  === REGRAS DE OURO PARA ADAPTAÇÃO ===
+  - SIMPLIFICAR NÃO É RESUMIR: Não remova informações fundamentais para o entendimento do problema. 
+  - CONTEXTO: O aluno deve ter informação suficiente para raciocinar. Se o enunciado original for longo, simplifique a estrutura das frases, mas mantenha os dados.
+  - MATEMÁTICA E GEOMETRIA: Use LaTeX para todas as fórmulas ($\frac{a}{b}$, $x^2$, etc).
+  - VISÃO: Analise a imagem original. Descreva diagramas geométricos com precisão no enunciado (Audiodescrição).
 
 === MATERIAL ORIGINAL (adapte SOMENTE este conteúdo) ===
 ${(material || '').slice(0, 8000)}

@@ -171,7 +171,15 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
       </div>
 
       {/* Configuração de Questões (NOVO) */}
-      <QuestionTypesSelector state={questionTypes} onChange={setQuestionTypes} />
+      <div className="space-y-4">
+        <QuestionTypesSelector state={questionTypes} onChange={setQuestionTypes} />
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
+          <span className="text-blue-500 text-sm mt-0.5">ℹ️</span>
+          <p className="text-[10px] text-blue-700 font-medium leading-relaxed">
+            <strong>Sobre a quantidade:</strong> A IA prioriza as questões do seu material original. Se você solicitar mais questões do que o material possui (ex: material com 5 e pedido de 10), a IA criará questões <strong>correlatas</strong> baseadas no mesmo tema para completar o pedido.
+          </p>
+        </div>
+      </div>
 
       {/* Opções de IA */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
