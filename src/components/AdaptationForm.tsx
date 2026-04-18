@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { FileText, UploadCloud, X, Send, Loader2 } from 'lucide-react';
+import { FileText, UploadCloud, X, Send, Loader2, Sparkles } from 'lucide-react';
+import QuestionTypesSelector, { QuestionTypesState } from './QuestionTypesSelector';
 
 interface AdaptationFormProps {
   loading: boolean;
@@ -21,7 +22,11 @@ interface AdaptationFormProps {
   gerarImagensIA: boolean;
   setGerarImagensIA: (val: boolean) => void;
   adaptacoes: string;
-  setAdaptacoes: React.Dispatch<React.SetStateAction<string>>;
+  setAdaptacoes: (val: string) => void;
+  selectedProfiles: string[];
+  setSelectedProfiles: (profiles: string[]) => void;
+  questionTypes: QuestionTypesState;
+  setQuestionTypes: (state: QuestionTypesState) => void;
   estilosAdaptacao: {
     destacarChave: boolean;
     dividirBlocos: boolean;
@@ -40,7 +45,9 @@ interface AdaptationFormProps {
 const AdaptationForm: React.FC<AdaptationFormProps> = ({
   loading, onSubmit, file, setFile, material, setMaterial, etapaEnsino, setEtapaEnsino,
   ano, setAno, caixaAlta, setCaixaAlta, incluirDescricaoVisual, setIncluirDescricaoVisual,
-  gerarImagensIA, setGerarImagensIA, adaptacoes, setAdaptacoes, estilosAdaptacao, setEstilosAdaptacao,
+  gerarImagensIA, setGerarImagensIA, adaptacoes, setAdaptacoes,
+  selectedProfiles, setSelectedProfiles, questionTypes, setQuestionTypes,
+  estilosAdaptacao, setEstilosAdaptacao,
   generationsCount, MAX_GENERATIONS, isFullVersion, userAccessType, userExpiresAt
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,7 +56,13 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
     setEstilosAdaptacao((prev: any) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const adps = ["TDAH", "Dislexia", "Discalculia", "Autismo", "Deficiência Visual", "Deficiência Intelectual"];
+  const toggleProfile = (adap: string) => {
+    if (selectedProfiles.includes(adap)) {
+      setSelectedProfiles(selectedProfiles.filter(p => p !== adap));
+    } else {
+      setSelectedProfiles([...selectedProfiles, adap]);
+    }
+  };
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -157,6 +170,9 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
         ))}
       </div>
 
+      {/* Configuração de Questões (NOVO) */}
+      <QuestionTypesSelector state={questionTypes} onChange={setQuestionTypes} />
+
       {/* Opções de IA */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <button type="button" onClick={() => setCaixaAlta(!caixaAlta)} className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${caixaAlta ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'}`}>
@@ -185,17 +201,39 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
         )}
       </div>
 
-      {/* Necessidades AEE */}
+      {/* Necessidades AEE (MELHORADO) */}
       <div>
         <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Perfil do Aluno (AEE)</label>
         <div className="flex flex-wrap gap-2 mb-4">
-          {adps.map((adap) => (
-            <button key={adap} type="button" onClick={() => setAdaptacoes(prev => prev ? (prev.includes(adap) ? prev : `${prev}\n- ${adap}`) : `- ${adap}`)} className="bg-white text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-bold hover:bg-slate-50 hover:border-slate-300 transition-all">
-              + {adap}
-            </button>
-          ))}
+          {["TDAH", "Dislexia", "Discalculia", "Autismo", "Def. Visual", "Def. Intelectual"].map((adap) => {
+            const isSelected = selectedProfiles.includes(adap);
+            return (
+              <button 
+                key={adap} 
+                type="button" 
+                onClick={() => toggleProfile(adap)} 
+                className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                  isSelected 
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 scale-105' 
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600'
+                }`}
+              >
+                {isSelected && <Sparkles size={10} className="animate-pulse" />}
+                {adap}
+              </button>
+            );
+          })}
         </div>
-        <textarea value={adaptacoes} onChange={(e) => setAdaptacoes(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[120px] text-sm" placeholder="Descreva as necessidades específicas..." />
+        
+        <div className="space-y-2">
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notas Adicionais (Opcional)</label>
+          <textarea 
+            value={adaptacoes} 
+            onChange={(e) => setAdaptacoes(e.target.value)} 
+            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all min-h-[100px] text-sm" 
+            placeholder="Ex: Aluno em alfabetização tardia, prefere letras maiores..." 
+          />
+        </div>
       </div>
 
       {/* Submit */}

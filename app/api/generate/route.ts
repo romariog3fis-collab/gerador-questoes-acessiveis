@@ -12,7 +12,7 @@ const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1/models/gemini
 export async function POST(req: Request) {
   try {
     const {
-      material, adaptacoes, ano, etapaEnsino,
+      material, adaptacoes, selectedProfiles, questionTypes, ano, etapaEnsino,
       estilosAdaptacao, caixaAlta, gerarImagensIA,
       fileBase64,
       isRefinement, refinementAction, questionToRefine
@@ -28,15 +28,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── Detecção de perfis NEE ────────────────────────────────────────────
-    const lower = (adaptacoes || '').toLowerCase();
-    const perfis: string[] = [];
-    if (lower.includes('discalculia')) perfis.push('DISCALCULIA: substitua cálculos por raciocínio qualitativo. Forneça resultado pronto quando inevitável. Use analogias do cotidiano.');
-    if (lower.includes('tdah'))        perfis.push('TDAH: enunciados ≤3 linhas, palavra-chave em **negrito**, alternativas curtas e distintas.');
-    if (lower.includes('dislexia'))    perfis.push('DISLEXIA: frases ≤15 palavras, listas com marcadores, glossário amplo.');
-    if (lower.includes('autismo') || lower.includes('tea')) perfis.push('TEA: linguagem literal, sem metáforas, exemplos concretos, passo a passo de como responder.');
-    if (lower.includes('visual'))      perfis.push('DEF. VISUAL: descreva textualmente tudo que seria visual.');
-    if (lower.includes('intelectual')) perfis.push('DEF. INTELECTUAL: frases ≤10 palavras, máx 2 alternativas (A/B), exemplo real antes do enunciado.');
+    // ── Detecção de perfis NEE (Chips vindo da UI) ─────────────────────────
+    const perfisMap: Record<string, string> = {
+      'TDAH': 'TDAH: enunciados ≤3 linhas, palavra-chave em **negrito**, alternativas curtas e distintas.',
+      'Dislexia': 'DISLEXIA: frases ≤15 palavras, listas com marcadores, glossário amplo.',
+      'Discalculia': 'DISCALCULIA: substitua cálculos por raciocínio qualitativo. Forneça resultado pronto quando inevitável.',
+      'Autismo': 'TEA: linguagem literal, sem metáforas, exemplos concretos, passo a passo de como responder.',
+      'Def. Visual': 'DEF. VISUAL: descreva textualmente tudo que seria visual.',
+      'Def. Intelectual': 'DEF. INTELECTUAL: frases ≤10 palavras, máx 2 alternativas (A/B), suporte visual intenso.'
+    };
+    
+    const perfis = (selectedProfiles as string[] || []).map(p => perfisMap[p]).filter(Boolean);
 
     // ── Estilos pedagógicos ───────────────────────────────────────────────
     const estilos = [
@@ -47,56 +49,65 @@ export async function POST(req: Request) {
       caixaAlta                              && 'TODO O TEXTO EM MAIÚSCULAS',
     ].filter(Boolean).join(', ') || 'padrão acessível';
 
-    // ── Quantidade e tipos de questão ────────────────────────────────────
-    const adLower = (adaptacoes || '').toLowerCase();
-    const objMatch = adLower.match(/(\d+)\s*objetivas?/);
-    const subMatch = adLower.match(/(\d+)\s*(subjetivas?|discursivas?)/);
-    const totMatch = adLower.match(/(\d+)\s*quest[oõ]es?/);
-
-    // Aceita números por dígito (3) OU por extenso (tres/três/duas/quatro/cinco)
-    const numWords: Record<string,number> = {
-      'uma':1,'um':1,'dois':2,'duas':2,'tres':3,'três':3,'quatro':4,'cinco':5,'seis':6
-    };
-    const altRawMatch = adLower.match(/(\d+|uma|um|dois|duas|tres|três|quatro|cinco|seis)\s*(alternativas?|op[çc][oõ]es?|itens?)/);
-    const altCount = altRawMatch
-      ? (isNaN(Number(altRawMatch[1])) ? (numWords[altRawMatch[1]] ?? 4) : parseInt(altRawMatch[1]))
-      : null;
-
-    const qtdObj = objMatch ? parseInt(objMatch[1]) : null;
-    const qtdSub = subMatch ? parseInt(subMatch[1]) : null;
-    const qtdTot = totMatch && !objMatch && !subMatch ? parseInt(totMatch[1]) : null;
-
-    let instrucaoQuantidade = '';
-    if (qtdObj !== null && qtdSub !== null) {
-      instrucaoQuantidade = `GERE EXATAMENTE ${qtdObj + qtdSub} questões: ${qtdObj} com type="multiple_choice" (objetivas, com alternativas A) B) C)...) e ${qtdSub} com type="essay" (subjetivas, sem alternativas).`;
-    } else if (qtdObj !== null) {
-      instrucaoQuantidade = `GERE EXATAMENTE ${qtdObj} questões objetivas com type="multiple_choice" e alternativas A) B) C)...`;
-    } else if (qtdSub !== null) {
-      instrucaoQuantidade = `GERE EXATAMENTE ${qtdSub} questões subjetivas/discursivas com type="essay", sem alternativas.`;
-    } else if (qtdTot !== null) {
-      instrucaoQuantidade = `GERE EXATAMENTE ${qtdTot} questões.`;
+    // ── Quantidade e tipos de questão (Nova Lógica Estruturada) ────────────
+    let instrucaoTipos = '';
+    const qTypes = questionTypes as any;
+    
+    if (qTypes) {
+      const parts: string[] = [];
+      if (qTypes.multipleChoice?.enabled) {
+        const qty = qTypes.multipleChoice.quantity;
+        const alts = qTypes.multipleChoice.alternatives || 4;
+        parts.push(`Múltipla Escolha (type="multiple_choice") -> ${qty > 0 ? qty : 'mesmo do material'} questões com EXATAMENTE ${alts} alternativas (A B C...)`);
+      }
+      if (qTypes.trueFalse?.enabled) {
+        const qty = qTypes.trueFalse.quantity;
+        parts.push(`Verdadeiro/Falso (type="true_false") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
+      }
+      if (qTypes.fillBlanks?.enabled) {
+        const qty = qTypes.fillBlanks.quantity;
+        parts.push(`Completar Lacunas (type="fill_blanks") -> ${qty > 0 ? qty : 'mesmo do material'} questões (use ___ no enunciado)`);
+      }
+      if (qTypes.matchColumns?.enabled) {
+        const qty = qTypes.matchColumns.quantity;
+        parts.push(`Relacionar Colunas (type="match_columns") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
+      }
+      if (qTypes.essay?.enabled) {
+        const qty = qTypes.essay.quantity;
+        parts.push(`Discursivas (type="essay") -> ${qty > 0 ? qty : 'mesmo do material'} questões`);
+      }
+      
+      instrucaoTipos = parts.length > 0 ? parts.join('\n') : 'Adapte as questões existentes mantendo seus formatos originais.';
     } else {
-      instrucaoQuantidade = 'Adapte o mesmo número de questões que o material original contém.';
+      instrucaoTipos = 'Adapte o mesmo número de questões que o material original contém.';
     }
-
-    const instrucaoAlts = altCount
-      ? `Use EXATAMENTE ${altCount} alternativas nas questões objetivas (ex: A) B) C)${altCount > 3 ? ' D)' : ''}${altCount > 4 ? ' E)' : ''}).`
-      : 'Use 4 alternativas (A B C D) nas questões objetivas.';
 
     // ── Prompts ───────────────────────────────────────────────────────────
     const imgField = gerarImagensIA ? `"imagePrompt":"descrição de ilustração didática",` : '';
     const imgNote  = gerarImagensIA ? '' : 'NÃO inclua o campo imagePrompt.';
 
-    const systemPrompt = `Você é especialista em educação inclusiva. Sua única função é ADAPTAR questões já existentes — NUNCA criar questões novas.
-
-REGRA Nº1: USE SOMENTE o conteúdo do material fornecido. É PROIBIDO inventar questões não presentes no material original.
-REGRA Nº2: Responda APENAS com JSON válido, sem texto extra, sem markdown.
-
-SCHEMA para cada questão:
-{"id":"q1","originalNumber":"1","bloomLevel":"Lembrar|Entender|Aplicar|Analisar|Avaliar|Criar","type":"multiple_choice ou essay","content":"enunciado ADAPTADO da questão original (multiple_choice: inclua A) B) C)...)","answer":"resposta correta","justification":"justificativa pedagógica breve",${imgField}"glossary":[{"word":"termo do enunciado","meaning":"definição simples"}],"steps":["passo 1","passo 2"]}
-
-${imgNote}
-Retorne: {"title":"...","studentInfo":true,"overallAEEInfo":"orientações ao professor sobre as adaptações feitas","questions":[...]}`;
+    const systemPrompt = `Você é especialista em educação inclusiva. Sua única função é ADAPTAR questões existentes.
+ 
+ REGRA Nº1: USE SOMENTE o conteúdo do material fornecido. É PROIBIDO inventar conteúdo extra.
+ REGRA Nº2: Responda APENAS com JSON válido.
+ 
+ SCHEMA da questão:
+ {
+   "id":"q1",
+   "type":"multiple_choice|essay|true_false|fill_blanks|match_columns",
+   "content":"enunciado (use ___ para fill_blanks)",
+   "options":[{"letter":"A","text":"..."}],  // para multiple_choice
+   "isTrue": true,                           // para true_false
+   "blanks":["res1","res2"],                 // para fill_blanks
+   "pairs":[{"left":"item1","right":"corresp1"}], // para match_columns
+   "answer":"resultado correto",
+   "justification":"breve explicação",
+   ${imgField}
+   "glossary":[{"word":"...","meaning":"..."}],
+   "steps":["passo 1"]
+ }
+ 
+ Retorne: {"title":"...","studentInfo":true,"overallAEEInfo":"resumo das adaptações","questions":[...]}`;
 
     let userPrompt = '';
 
@@ -112,11 +123,12 @@ AÇÃO: ${refinementAction}`;
 
 ⚠️ OBRIGATÓRIO: trabalhe SOMENTE com as questões do MATERIAL ORIGINAL abaixo. Não invente conteúdo.
 
-=== REGRAS DE ADAPTAÇÃO ===
-QUANTIDADE: ${instrucaoQuantidade}
-ALTERNATIVAS: ${instrucaoAlts}
-PERFIS NEE:
+=== REGRAS DE CONFIGURAÇÃO ===
+${instrucaoTipos}
+
+PERFIS NEE ATIVOS:
 ${perfis.length ? perfis.map(p => '  • ' + p).join('\n') : '  • Adaptação geral de acessibilidade.'}
+
 ESTILOS: ${estilos}
 ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
 Taxonomia de Bloom: priorize Lembrar, Entender e Aplicar.

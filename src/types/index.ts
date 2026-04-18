@@ -18,11 +18,15 @@ export interface Question {
   originalNumber: string | number;
   bloomLevel: string;
   content: string; // Markdown
-  type: 'multiple_choice' | 'essay';
+  type: 'multiple_choice' | 'essay' | 'true_false' | 'fill_blanks' | 'match_columns';
   options?: {
     letter: string;
     text: string;
   }[];
+  // Campos para novos tipos
+  pairs?: { left: string; right: string }[]; // match_columns
+  blanks?: string[]; // fill_blanks (respostas corretas na ordem)
+  isTrue?: boolean; // true_false
   answer: string;
   justification: string;
   glossary?: { word: string; meaning: string }[];

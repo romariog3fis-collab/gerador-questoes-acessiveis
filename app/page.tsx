@@ -15,6 +15,7 @@ import AdaptationForm from '@/src/components/AdaptationForm';
 import AdaptationHistory from '@/src/components/AdaptationHistory';
 import FeedbackButton from '@/src/components/FeedbackButton';
 import { HistoryItem, StructuredResult, Question } from '@/src/types';
+import { QuestionTypesState } from '@/src/components/QuestionTypesSelector';
 
 export default function Home() {
   // Estados do Formulário
@@ -23,6 +24,14 @@ export default function Home() {
   const [ano, setAno] = useState('');
   const [etapaEnsino, setEtapaEnsino] = useState('');
   const [adaptacoes, setAdaptacoes] = useState('');
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
+  const [questionTypes, setQuestionTypes] = useState<QuestionTypesState>({
+    multipleChoice: { enabled: true,  quantity: 0, alternatives: 4 },
+    trueFalse:      { enabled: false, quantity: 0 },
+    fillBlanks:     { enabled: false, quantity: 0 },
+    matchColumns:   { enabled: false, quantity: 0 },
+    essay:          { enabled: false, quantity: 0 },
+  });
   const [caixaAlta, setCaixaAlta] = useState(false);
   const [incluirDescricaoVisual, setIncluirDescricaoVisual] = useState(false);
   const [gerarImagensIA, setGerarImagensIA] = useState(false);
@@ -150,6 +159,8 @@ export default function Home() {
         body: JSON.stringify({
           material: contextMaterial,
           adaptacoes,
+          selectedProfiles,
+          questionTypes,
           ano,
           etapaEnsino,
           estilosAdaptacao,
@@ -340,8 +351,11 @@ export default function Home() {
                 setIncluirDescricaoVisual={setIncluirDescricaoVisual}
                 gerarImagensIA={gerarImagensIA}
                 setGerarImagensIA={setGerarImagensIA}
-                adaptacoes={adaptacoes}
                 setAdaptacoes={setAdaptacoes}
+                selectedProfiles={selectedProfiles}
+                setSelectedProfiles={setSelectedProfiles}
+                questionTypes={questionTypes}
+                setQuestionTypes={setQuestionTypes}
                 estilosAdaptacao={estilosAdaptacao}
                 setEstilosAdaptacao={setEstilosAdaptacao}
                 generationsCount={generationsCount}

@@ -67,6 +67,68 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, onRefine, refinin
           </ReactMarkdown>
         </div>
 
+        {/* Renderização Especial por Tipo */}
+        <div className="mt-6 space-y-4">
+          {/* Múltipla Escolha Estruturada (se o IA enviar options) */}
+          {question.type === 'multiple_choice' && question.options && (
+            <div className="space-y-2">
+              {question.options.map((opt) => (
+                <div key={opt.letter} className="flex gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/30">
+                  <span className="font-black text-blue-600 w-5">{opt.letter})</span>
+                  <span className="text-sm border-l border-slate-200 pl-3">{opt.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Verdadeiro ou Falso */}
+          {question.type === 'true_false' && (
+            <div className="flex gap-4">
+              {['V', 'F'].map((label) => (
+                <div key={label} className="flex items-center gap-2 p-3 px-6 rounded-2xl border border-slate-200 bg-white font-black text-slate-400">
+                  <div className="w-5 h-5 rounded-full border-2 border-slate-200" />
+                  {label}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Completar Lacunas */}
+          {question.type === 'fill_blanks' && (
+            <div className="p-4 bg-amber-50/30 border border-amber-100/50 rounded-2xl">
+              <p className="text-[10px] font-black uppercase text-amber-600 mb-2 tracking-widest">Complete as lacunas acima</p>
+              <div className="flex flex-wrap gap-2">
+                {question.blanks?.map((_, i) => (
+                  <div key={i} className="h-8 w-24 border-b-2 border-slate-300 bg-white/50 rounded-t-lg" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Relacionar Colunas */}
+          {question.type === 'match_columns' && question.pairs && (
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-3">
+                {question.pairs.map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+                    <span className="w-6 h-6 flex items-center justify-center bg-slate-900 text-white rounded-lg text-[10px] font-black">{i + 1}</span>
+                    <span className="text-xs font-medium">{p.left}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-3">
+                {/* Embaralha as respostas para o aluno relacionar */}
+                {[...question.pairs].sort(() => Math.random() - 0.5).map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                    <span className="w-6 h-6 border-2 border-slate-200 bg-white rounded-lg" />
+                    <span className="text-xs font-medium text-slate-600">{p.right}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Imagem de Apoio se houver (Trava de segurança: ignorar prompts curtos ou que citam material original) */}
         {question.imagePrompt && question.imagePrompt.length > 20 && !question.imagePrompt.toLowerCase().includes('material original') && (
           <ImagePrompt prompt={question.imagePrompt} />
@@ -128,8 +190,22 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, onRefine, refinin
                 className="overflow-hidden"
               >
                 <div className="mt-4 p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                  <p className="text-sm font-bold text-emerald-900 mb-2">Resposta Correta: {question.answer}</p>
-                  <p className="text-xs text-emerald-700 leading-relaxed italic">{question.justification}</p>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="bg-emerald-600 text-white p-1 rounded-lg">
+                      <Sparkles size={14} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-emerald-900 leading-tight">
+                        Resposta: {question.type === 'true_false' ? (question.isTrue ? 'Verdadeiro' : 'Falso') : question.answer}
+                      </p>
+                      {question.type === 'fill_blanks' && question.blanks && (
+                        <p className="text-[11px] font-bold text-emerald-700 mt-1">
+                          Lacunas: {question.blanks.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-emerald-700 leading-relaxed italic border-t border-emerald-200/50 pt-3">{question.justification}</p>
                 </div>
               </motion.div>
             )}
