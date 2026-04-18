@@ -9,10 +9,16 @@ const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1/models/gemin
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Rastreia se Groq já retornou 429 nesta requisição (skip to Gemini)
+let groqRateLimited = false;
+
 // ── Utilitários de chamada ──────────────────────────────────────────────────
 async function callGroq(
-  key: string, model: string, system: string, user: string, tokens = 1200
+  key: string, model: string, system: string, user: string, tokens = 800
 ): Promise<string | null> {
+  if (groqRateLimited) return null;  // já sabemos que Groq está limitado
   try {
     const res = await fetch(GROQ_URL, {
       method: 'POST',
@@ -25,6 +31,11 @@ async function callGroq(
         response_format: { type: 'json_object' },
       }),
     });
+    if (res.status === 429) {
+      groqRateLimited = true;  // marca: pula para Gemini
+      console.warn(`[Groq/${model}] Rate limited (429) — switching to Gemini`);
+      return null;
+    }
     if (!res.ok) {
       console.warn(`[Groq/${model}] HTTP ${res.status}`);
       return null;
@@ -52,7 +63,7 @@ async function callGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 1500 },
+        generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
       }),
     });
     if (!res.ok) { console.warn(`[Gemini] HTTP ${res.status}`); return null; }
@@ -67,13 +78,15 @@ async function callGemini(
 async function callAI(
   groqKey: string, geminiKey: string,
   system: string, user: string,
-  tokens = 1200, fileBase64?: string
+  tokens = 800, fileBase64?: string
 ): Promise<string | null> {
-  if (groqKey) {
+  if (groqKey && !groqRateLimited) {
     const r1 = await callGroq(groqKey, GROQ_PRIMARY, system, user, tokens);
     if (r1) return r1;
-    const r2 = await callGroq(groqKey, GROQ_SMALL, system, user, tokens);
-    if (r2) return r2;
+    if (!groqRateLimited) {
+      const r2 = await callGroq(groqKey, GROQ_SMALL, system, user, tokens);
+      if (r2) return r2;
+    }
   }
   if (geminiKey) {
     return callGemini(geminiKey, system, user, fileBase64);
@@ -228,8 +241,9 @@ export async function POST(req: Request) {
     }
 
     // ── Fluxo principal: uma chamada POR tipo ─────────────────────────────
+    groqRateLimited = false; // reset por request (variável de módulo pode ser reusada)
     const qTypes = questionTypes as any;
-    const materialSnippet = (material || '').slice(0, 6000);
+    const materialSnippet = (material || '').slice(0, 4000); // 4k chars ≈ ~1000 tokens
 
     // Monta lista de jobs { typeKey, qty }
     const jobs: { typeKey: string; qty: number }[] = [];
@@ -249,7 +263,9 @@ export async function POST(req: Request) {
     let title = 'Avaliação Adaptada';
     let overallAEEInfo = '';
 
-    for (const job of jobs) {
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i];
+      if (i > 0) await sleep(1500); // respeita TPM do Groq entre chamadas
       const qs = await generateQuestionsOfType({
         groqKey, geminiKey,
         typeKey: job.typeKey,
