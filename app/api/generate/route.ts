@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       }
       if (qTypes.trueFalse?.enabled) {
         const qty = qTypes.trueFalse.quantity;
-        parts.push(`Verdadeiro/Falso (type="true_false") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: cada questão deve ter pelo menos 3 afirmações (assertivas).`);
+        parts.push(`Verdadeiro/Falso (type="true_false") -> ${qty > 0 ? qty : 'mesmo do material'} questões. OBRIGATÓRIO: preencha o array "assertions" com pelo menos 3 afirmações independentes.`);
       }
       if (qTypes.fillBlanks?.enabled) {
         const qty = qTypes.fillBlanks.quantity;
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
    "type":"multiple_choice|essay|true_false|fill_blanks|match_columns",
    "content":"enunciado adaptado. Use LaTeX para fórmulas: $...$ (inline) ou $$...$$ (bloco).",
    "options":[{"letter":"A","text":"texto ou fórumla LaTeX"}], 
-   "isTrue": true,                           
+   "assertions":[{"text":"afirmação (apenas para true_false)", "isTrue": true}],                           
    "blanks":["res1","res2","res3"],          
    "pairs":[{"left":"item1","right":"corresp1"}], 
    "answer":"resultado correto (pode ser LaTeX)",

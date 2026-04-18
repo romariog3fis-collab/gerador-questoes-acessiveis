@@ -92,13 +92,35 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, index, caixaAlta,
 
           {/* Verdadeiro ou Falso */}
           {question.type === 'true_false' && (
-            <div className="flex gap-4">
-              {['V', 'F'].map((label) => (
-                <div key={label} className="flex items-center gap-2 p-3 px-6 rounded-2xl border border-slate-200 bg-white font-black text-slate-400">
-                  <div className="w-5 h-5 rounded-full border-2 border-slate-200" />
-                  {label}
+            <div className="space-y-3">
+              {question.assertions && question.assertions.length > 0 ? (
+                question.assertions.map((assertion: any, index: number) => (
+                  <div key={index} className="flex items-start gap-4 p-3 rounded-xl border border-slate-100 bg-slate-50/30">
+                    <div className="flex gap-2 shrink-0 pt-0.5">
+                      {['V', 'F'].map((label) => (
+                        <div key={label} className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-300 bg-white text-xs font-black text-slate-400">
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-sm font-medium text-slate-700 pt-1">
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {assertion.text}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                /* Fallback para questões antigas sem o array "assertions" */
+                <div className="flex gap-4 mt-4">
+                  {['V', 'F'].map((label) => (
+                    <div key={label} className="flex items-center gap-2 p-3 px-6 rounded-2xl border border-slate-200 bg-white font-black text-slate-400">
+                      <div className="w-5 h-5 rounded-full border-2 border-slate-200" />
+                      {label}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
 

@@ -308,7 +308,15 @@ export default function Home() {
           });
           questionBody += '</div>';
         } else if (q.type === 'true_false') {
-          questionBody += '<div style="margin-left: 20px; margin-bottom: 10px;">( &nbsp; ) Verdadeiro &nbsp;&nbsp; ( &nbsp; ) Falso</div>';
+          if (q.assertions && q.assertions.length > 0) {
+            questionBody += '<div style="margin-left: 10px; margin-bottom: 10px;">';
+            q.assertions.forEach((assertion: any) => {
+              questionBody += `<p style="margin-bottom: 8px;">( V ) ( F ) &nbsp;&nbsp; ${mdToHtml(assertion.text)}</p>`;
+            });
+            questionBody += '</div>';
+          } else {
+            questionBody += '<div style="margin-left: 20px; margin-bottom: 10px;">( &nbsp; ) Verdadeiro &nbsp;&nbsp; ( &nbsp; ) Falso</div>';
+          }
         } else if (q.type === 'fill_blanks' && q.blanks) {
           questionBody += '<div style="margin-top: 10px; border: 1px dashed #cbd5e1; padding: 10px; font-size: 11px; color: #64748b;">ESPAÇO PARA COMPLETAR: ' + q.blanks.map(() => '________________').join(', ') + '</div>';
         } else if (q.type === 'match_columns' && q.pairs) {
@@ -329,7 +337,7 @@ export default function Home() {
             ${questionBody}
             ${q.imagePrompt ? '<div style="margin: 20px 0; border: 1px solid #e2e8f0; padding: 15px; background: #f8fafc; color: #64748b; font-size: 11px;"><b>ILUSTRAÇÃO SUGERIDA:</b> ' + q.imagePrompt + '</div>' : ''}
             <div style="margin-top: 20px; background-color: #f1f5f9; padding: 15px; font-size: 10px; border-radius: 8px;">
-              <b style="color: #0f172a;">GABARITO:</b> ${q.type === 'true_false' ? (q.isTrue ? 'V' : 'F') : q.answer}<br>
+              <b style="color: #0f172a;">GABARITO:</b> ${q.type === 'true_false' ? (q.assertions && q.assertions.length > 0 ? q.assertions.map((a:any) => a.isTrue ? 'V' : 'F').join(' - ') : (q.isTrue ? 'V' : 'F')) : q.answer}<br>
               ${q.type === 'fill_blanks' && q.blanks ? '<b>LACUNAS:</b> ' + q.blanks.join(', ') + '<br>' : ''}
               <b style="color: #0f172a;">JUSTIFICATIVA:</b> ${q.justification}
             </div>
