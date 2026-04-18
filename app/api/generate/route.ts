@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       if (qTypes.fillBlanks?.enabled) {
         const qty = qTypes.fillBlanks.quantity || 1;
         totalRequested += qty;
-        parts.push(`- ${qty} questão(ões) de Completar Lacunas (type="fill_blanks"). OBRIGATÓRIO: cada questão deve ter pelo menos 3 lacunas (___) e suas respostas listadas.`);
+        parts.push(`- ${qty} questão(ões) de Completar Lacunas (type="fill_blanks"). OBRIGATÓRIO E INEGOCIÁVEL: substitua as palavras-chave no "content" por "_________" no mínimo 3 vezes por questão. O array "blanks" deve ter no mínimo 3 itens.`);
       }
       if (qTypes.matchColumns?.enabled) {
         const qty = qTypes.matchColumns.quantity || 1;
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
  {"id":"q2","originalNumber":"2","type":"true_false","content":"enunciado adaptado","assertions":[{"text":"afirmação independente", "isTrue": true}], "answer":"V e F...", "justification":"explicação", ${imgField} "glossary":[]}
 
  3. FORMATO PARA COMPLETAR LACUNAS (fill_blanks):
- {"id":"q3","originalNumber":"3","type":"fill_blanks","content":"enunciado","blanks":["resposta 1","resposta 2"], "answer":"...","justification":"...", ${imgField} "glossary":[]}
+ {"id":"q3","originalNumber":"3","type":"fill_blanks","content":"A capital do Brasil é _________ e a moeda é o _________.","blanks":["Brasília","Real"], "answer":"...","justification":"...", ${imgField} "glossary":[]}
 
  4. FORMATO PARA RELACIONAR COLUNAS (match_columns):
  {"id":"q4","originalNumber":"4","type":"match_columns","content":"enunciado","pairs":[{"left":"item da esquerda","right":"item da direita"}], "answer":"...","justification":"...", ${imgField} "glossary":[]}
