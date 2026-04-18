@@ -163,19 +163,16 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
         },
       });
 
-      // Usa x-goog-api-key header (funciona com AIza e AQ.)
-      const res = await fetch(GEMINI_URL, {
+      // Usa ?key= na URL (método mais compatível com todos os formatos de chave)
+      const res = await fetch(`${GEMINI_URL}?key=${geminiKey}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': geminiKey,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body,
       });
 
       if (!res.ok) {
         const errBody = await res.clone().json().catch(() => ({}));
-        console.error(`[Gemini] x-goog-api-key falhou (${res.status}):`, JSON.stringify(errBody).slice(0, 400));
+        console.error(`[Gemini] Erro (${res.status}):`, JSON.stringify(errBody).slice(0, 400));
       }
 
       return res;
