@@ -236,30 +236,37 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
 
     // ── Cadeia de fallback: Groq 70B → Groq 8B → Gemini ─────────────────
     let rawText: string | null = null;
+    let lastErrorMsg = 'Os servidores de IA estão sobrecarregados no momento. Aguarde alguns minutos e tente novamente.';
 
     // Tentativa 1: Groq 70B
     if (groqKey && !rawText) {
       try {
-        const res1 = await callGroq(GROQ_PRIMARY, 5000);
+        // Reduzido para 3000 tokens para evitar que (max_tokens + prompt) > 6000 TPM (Limite Grátis Groq)
+        const res1 = await callGroq(GROQ_PRIMARY, 3000);
         if (res1 && res1.ok) {
           rawText = await extractText(res1, 'groq');
         } else if (res1) {
-          console.warn(`[Groq 70B] Status ${res1.status} — tentando infra reserva (8B)`);
+          const err1 = await res1.clone().json().catch(() => ({}));
+          lastErrorMsg = `Recusado pelo Groq 70B (Status ${res1.status}). Motivo: ${err1?.error?.message?.slice(0, 50) || 'Limite de tráfego'}`;
+          console.warn(`[Groq 70B] Falhou — tentando infra reserva (8B). Erro:`, err1);
           
           // Tentativa 2: Groq 8B
-          const res2 = await callGroq(GROQ_SMALL, 4000);
+          const res2 = await callGroq(GROQ_SMALL, 3000);
           if (res2 && res2.ok) {
             rawText = await extractText(res2, 'groq');
           } else {
              // Tentativa 2.5: Mixtral (Groq)
-             console.warn(`[Groq 8B] Status ${res2?.status} — tentando Mixtral`);
-             const resM = await callGroq(GROQ_TERTIARY, 4000);
+             const resM = await callGroq(GROQ_TERTIARY, 3000);
              if (resM && resM.ok) {
                rawText = await extractText(resM, 'groq');
+             } else if (resM) {
+                const errM = await resM.clone().json().catch(() => ({}));
+                lastErrorMsg = `Recusado pelo Groq Mixtral (Status ${resM.status}). Motivo: ${errM?.error?.message?.slice(0, 50) || 'Limite de tráfego'}`;
              }
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        lastErrorMsg = `Falha de conexão com a IA: ${err.message}`;
         console.error('[Groq] Falha de conexão/timeout:', err);
       }
     }
@@ -274,21 +281,19 @@ ${adaptacoes || 'Adaptação geral inclusiva.'}`;
       } else {
         const errData = res3 ? await res3.json().catch(() => ({})) : {};
         const errMsg = errData?.error?.message || '';
-        // Log técnico no servidor, mensagem amigável para o usuário
+        lastErrorMsg = `Recusado pelo Google Gemini. Motivo: ${errMsg.slice(0, 60)}`;
+        
         console.error('[Gemini] Erro:', errMsg.slice(0, 300));
-
-        // Quota esgotada: erro esperado, não expor detalhes técnicos
         const isQuota = errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('limit');
         if (isQuota) {
-          console.warn('[Gemini] Cota esgotada. Verifique a GEMINI_API_KEY no Vercel (use chave de projeto SEM faturamento).');
+          console.warn('[Gemini] Cota esgotada. Verifique a GEMINI_API_KEY no Vercel.');
         }
-        // Continua — rawText ainda null, vai retornar erro abaixo
       }
     }
 
     if (!rawText) {
       return NextResponse.json(
-        { error: 'Os servidores de IA estão sobrecarregados no momento. Aguarde alguns minutos e tente novamente.' },
+        { error: `Falha na geração: ${lastErrorMsg}` },
         { status: 503 }
       );
     }
