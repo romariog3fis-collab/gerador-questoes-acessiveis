@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // ── Provedores de IA (todos gratuitos) ────────────────────────────────────
 // Camada 1: Groq llama-3.3-70b  → 14.400 req/dia
@@ -52,7 +52,15 @@ export async function POST(req: Request) {
     const objMatch = adLower.match(/(\d+)\s*objetivas?/);
     const subMatch = adLower.match(/(\d+)\s*(subjetivas?|discursivas?)/);
     const totMatch = adLower.match(/(\d+)\s*quest[oõ]es?/);
-    const altMatch = adLower.match(/(\d+)\s*(alternativas?|op[çc][oõ]es?|itens?)/);
+
+    // Aceita números por dígito (3) OU por extenso (tres/três/duas/quatro/cinco)
+    const numWords: Record<string,number> = {
+      'uma':1,'um':1,'dois':2,'duas':2,'tres':3,'três':3,'quatro':4,'cinco':5,'seis':6
+    };
+    const altRawMatch = adLower.match(/(\d+|uma|um|dois|duas|tres|três|quatro|cinco|seis)\s*(alternativas?|op[çc][oõ]es?|itens?)/);
+    const altCount = altRawMatch
+      ? (isNaN(Number(altRawMatch[1])) ? (numWords[altRawMatch[1]] ?? 4) : parseInt(altRawMatch[1]))
+      : null;
 
     const qtdObj = objMatch ? parseInt(objMatch[1]) : null;
     const qtdSub = subMatch ? parseInt(subMatch[1]) : null;
@@ -71,8 +79,8 @@ export async function POST(req: Request) {
       instrucaoQuantidade = 'Adapte o mesmo número de questões que o material original contém.';
     }
 
-    const instrucaoAlts = altMatch
-      ? `Use EXATAMENTE ${altMatch[1]} alternativas nas questões objetivas.`
+    const instrucaoAlts = altCount
+      ? `Use EXATAMENTE ${altCount} alternativas nas questões objetivas (ex: A) B) C)${altCount > 3 ? ' D)' : ''}${altCount > 4 ? ' E)' : ''}).`
       : 'Use 4 alternativas (A B C D) nas questões objetivas.';
 
     // ── Prompts ───────────────────────────────────────────────────────────
