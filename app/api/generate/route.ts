@@ -52,132 +52,112 @@ export async function POST(req: Request) {
       caixaAlta                              && 'TODO O TEXTO EM MAIÚSCULAS',
     ].filter(Boolean).join(', ') || 'padrão acessível';
 
-    // ── Quantidade e tipos de questão (Nova Lógica Estruturada) ────────────
+    // ── Quantidade e tipos de questão ────────────────────────────────────
     let instrucaoTipos = '';
+    let totalRequested = 0;
     const qTypes = questionTypes as any;
-    
+
     if (qTypes) {
       const parts: string[] = [];
-      let totalRequested = 0;
-      
+
       if (qTypes.multipleChoice?.enabled) {
         const qty = qTypes.multipleChoice.quantity || 1;
         totalRequested += qty;
         const alts = Math.max(3, qTypes.multipleChoice.alternatives || 4);
-        parts.push(`- ${qty} questão(ões) de Múltipla Escolha (type="multiple_choice") com EXATAMENTE ${alts} alternativas (Ex: A, B, C, D)`);
+        parts.push(`- ${qty} questão(ões) tipo="multiple_choice" com ${alts} alternativas`);
       }
       if (qTypes.trueFalse?.enabled) {
         const qty = qTypes.trueFalse.quantity || 1;
         totalRequested += qty;
-        parts.push(`- ${qty} questão(ões) de Verdadeiro/Falso (type="true_false"). OBRIGATÓRIO: preencha o array "assertions" com pelo menos 3 afirmações independentes em CADA questão.`);
+        parts.push(`- ${qty} questão(ões) tipo="true_false" (array "assertions" com ≥3 afirmações em cada)`);
       }
       if (qTypes.fillBlanks?.enabled) {
         const qty = qTypes.fillBlanks.quantity || 1;
         totalRequested += qty;
-        parts.push(`- ${qty} questão(ões) de Completar Lacunas (type="fill_blanks"). OBRIGATÓRIO E INEGOCIÁVEL: substitua as palavras-chave no "content" por "_________" no mínimo 3 vezes por questão. O array "blanks" deve ter no mínimo 3 itens.`);
+        parts.push(`- ${qty} questão(ões) tipo="fill_blanks" (content com ≥3 lacunas "_________", array "blanks" correspondente)`);
       }
       if (qTypes.matchColumns?.enabled) {
         const qty = qTypes.matchColumns.quantity || 1;
         totalRequested += qty;
-        parts.push(`- ${qty} questão(ões) de Relacionar Colunas (type="match_columns"). OBRIGATÓRIO: pelo menos 4 pares (left e right) no array "pairs".`);
+        parts.push(`- ${qty} questão(ões) tipo="match_columns" (array "pairs" com ≥4 pares left/right)`);
       }
       if (qTypes.essay?.enabled) {
         const qty = qTypes.essay.quantity || 1;
         totalRequested += qty;
-        parts.push(`- ${qty} questão(ões) Discursiva(s) (type="essay").`);
+        parts.push(`- ${qty} questão(ões) tipo="essay"`);
       }
-      
-      parts.push(`\n⚠️ ORDEM ESTRITA DE GERAÇÃO:
-      Você foi configurado para gerar EXATAMENTE ${totalRequested} questões no total, seguindo RIGOROSAMENTE a distribuição acima.
-      - Para bater essa cota, adapte as questões do MATERIAL ORIGINAL.
-      - Se a cota for MAIOR que o material original, crie questões correlatas do mesmo assunto.
-      - Se a cota for MENOR, escolha os pontos vitais.
-      NÃO ignore nenhuma das cotas (nem para mais, nem para menos).`);
-      
-      instrucaoTipos = parts.length > 0 ? parts.join('\n') : 'Adapte as questões existentes mantendo seus formatos originais.';
+
+      instrucaoTipos = parts.length > 0
+        ? `TOTAL: ${totalRequested} questões com esta distribuição OBRIGATÓRIA:\n${parts.join('\n')}`
+        : 'Adapte as questões mantendo seus formatos originais.';
     } else {
-      instrucaoTipos = 'Adapte o mesmo número de questões que o material original contém.';
+      instrucaoTipos = 'Adapte o mesmo número de questões do material original.';
     }
 
     // ── Prompts ───────────────────────────────────────────────────────────
-    const imgField = gerarImagensIA ? `"imagePrompt":"descrição de ilustração didática",` : '';
+    const imgField = gerarImagensIA ? '"imagePrompt":"descrição de ilustração didática",' : '';
     const imgNote  = gerarImagensIA ? '' : 'NÃO inclua o campo imagePrompt.';
 
-    const systemPrompt = `Você é um gerador de avaliações e especialista em educação inclusiva. Aja sob regras rígidas:
- 
- REGRA Nº1: USE SOMENTE o conteúdo do material fornecido. É PROIBIDO inventar conteúdo extra.
- REGRA Nº2: Responda APENAS com JSON válido.
- REGRA Nº3: Respeite a cota de questões e o formato (type) exigido.
-
- SCHEMA GERAL DO JSON DE RETORNO:
- {
-   "title":"Título da Avaliação",
-   "studentInfo":true,
-   "overallAEEInfo":"Breve resumo das adaptações feitas",
-   "questions":[
-      // ... Objetos de questão formatados estritamente conforme as estruturas abaixo ...
-   ]
- }
-
- ─── MOLDES OBRIGATÓRIOS PARA CADA TIPO DE QUESTÃO ───
- 
- 1. FORMATO PARA MÚLTIPLA ESCOLHA (multiple_choice):
- {"id":"q1","originalNumber":"1","type":"multiple_choice","content":"enunciado adaptado. Use LaTeX para fórmulas: $...$","options":[{"letter":"A","text":"texto"}], "answer":"resultado correto", "justification":"explicação", ${imgField} "glossary":[{"word":"...","meaning":"..."}]}
- 
- 2. FORMATO PARA VERDADEIRO OU FALSO (true_false):
- {"id":"q2","originalNumber":"2","type":"true_false","content":"enunciado adaptado","assertions":[{"text":"afirmação independente", "isTrue": true}], "answer":"V e F...", "justification":"explicação", ${imgField} "glossary":[]}
-
- 3. FORMATO PARA COMPLETAR LACUNAS (fill_blanks):
- {"id":"q3","originalNumber":"3","type":"fill_blanks","content":"A capital do Brasil é _________ e a moeda é o _________.","blanks":["Brasília","Real"], "answer":"...","justification":"...", ${imgField} "glossary":[]}
-
- 4. FORMATO PARA RELACIONAR COLUNAS (match_columns):
- {"id":"q4","originalNumber":"4","type":"match_columns","content":"enunciado","pairs":[{"left":"item da esquerda","right":"item da direita"}], "answer":"...","justification":"...", ${imgField} "glossary":[]}
-
- 5. FORMATO PARA DISCURSIVAS (essay):
- {"id":"q5","originalNumber":"5","type":"essay","content":"enunciado","answer":"chave de correção esperada","justification":"...", ${imgField} "glossary":[]}
- 
- NOTA: Em TODAS as questões, o campo "glossary" é opcional.
-`;
+    const systemPrompt = [
+      `Você é um gerador de avaliações especializado em educação inclusiva.`,
+      ``,
+      `==== SUA MISSÃO (LEIA ANTES DE QUALQUER OUTRA COISA) ====`,
+      instrucaoTipos,
+      `=========================================================`,
+      ``,
+      `REGRAS ABSOLUTAS:`,
+      `1. Use SOMENTE o conteúdo do MATERIAL fornecido. PROIBIDO inventar.`,
+      `2. Responda APENAS com JSON válido — zero texto fora do JSON.`,
+      `3. O campo "type" de CADA questão DEVE ser exatamente um dos tipos acima.`,
+      `4. NUNCA converta questões de outros tipos para multiple_choice.`,
+      `5. ${imgNote}`,
+      ``,
+      `MOLDES OBRIGATÓRIOS (use o molde correto para cada tipo):`,
+      ``,
+      `[multiple_choice] → {"id":"q1","originalNumber":"1","type":"multiple_choice","content":"enunciado","options":[{"letter":"A","text":"texto A"},{"letter":"B","text":"texto B"},{"letter":"C","text":"texto C"}],"answer":"A","justification":"..."}`,
+      ``,
+      `[true_false] → {"id":"q2","originalNumber":"2","type":"true_false","content":"contexto geral da questão","assertions":[{"text":"afirmação 1","isTrue":true},{"text":"afirmação 2","isTrue":false},{"text":"afirmação 3","isTrue":true}],"answer":"V, F, V","justification":"..."}`,
+      ``,
+      `[fill_blanks] → {"id":"q3","originalNumber":"3","type":"fill_blanks","content":"A _________ ocorreu em 1822 e resultou na _________ do Brasil da _________  portuguesa.","blanks":["Independência","separação","coroa"],"answer":"Independência, separação, coroa","justification":"..."}`,
+      ``,
+      `[match_columns] → {"id":"q4","originalNumber":"4","type":"match_columns","content":"Relacione os conceitos:","pairs":[{"left":"Conceito A","right":"Definição 1"},{"left":"Conceito B","right":"Definição 2"},{"left":"Conceito C","right":"Definição 3"},{"left":"Conceito D","right":"Definição 4"}],"answer":"A-1, B-2, C-3, D-4","justification":"..."}`,
+      ``,
+      `[essay] → {"id":"q5","originalNumber":"5","type":"essay","content":"Explique com suas palavras...","answer":"Chave de correção esperada","justification":"..."}`,
+      ``,
+      `JSON de retorno: {"title":"...","studentInfo":true,"overallAEEInfo":"resumo das adaptações","questions":[...]}`,
+    ].join('\n');
 
     let userPrompt = '';
 
     if (isRefinement) {
-      userPrompt = `Refine a questão abaixo conforme a ação. Retorne SOMENTE o JSON da questão refinada, mesmo schema, mantendo o "id" original.
+      userPrompt = `Refine a questão abaixo conforme a ação solicitada. Retorne SOMENTE o JSON da questão refinada, mantendo o "id" original.
 
 QUESTÃO:
 ${JSON.stringify(questionToRefine, null, 2)}
 
 AÇÃO: ${refinementAction}`;
     } else {
-      userPrompt = `Adapte as questões abaixo para tornar a avaliação mais acessível.
-
-⚠️ OBRIGATÓRIO: trabalhe SOMENTE com as questões do MATERIAL ORIGINAL abaixo. Não invente conteúdo.
-
-=== REGRAS DE CONFIGURAÇÃO ===
-${instrucaoTipos}
-
-PERFIS NEE ATIVOS:
-${perfis.length ? perfis.map(p => '  • ' + p).join('\n') : '  • Adaptação geral de acessibilidade.'}
-
-ESTILOS: ${estilos}
-ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
-  Taxonomia de Bloom: priorize Lembrar, Entender e Aplicar.
-  MARCAÇÃO: Use **negrito** (asteriscos duplos) para destacar termos e conceitos fundamentais.
-  
-  === REGRAS DE OURO PARA ADAPTAÇÃO ===
-  - SIMPLIFICAR NÃO É RESUMIR: Não remova informações fundamentais para o entendimento do problema. 
-  - CONTEXTO: O aluno deve ter informação suficiente para raciocinar. Se o enunciado original for longo, simplifique a estrutura das frases, mas mantenha os dados.
-  - MATEMÁTICA E GEOMETRIA: Use LaTeX para todas as fórmulas ($\frac{a}{b}$, $x^2$, etc).
-  - VISÃO: Analise a imagem original. Descreva diagramas geométricos com precisão no enunciado (Audiodescrição).
-
-=== MATERIAL ORIGINAL (adapte SOMENTE este conteúdo) ===
+      userPrompt = `MATERIAL ORIGINAL (use como única fonte de conteúdo):
 ${(material || '').slice(0, 8000)}
 
-=== ADAPTAÇÕES SOLICITADAS ===
-${adaptacoes || 'Adaptação geral inclusiva.'}`;
+PERFIS DE ACESSIBILIDADE:
+${perfis.length ? perfis.map((p: string) => '  • ' + p).join('\n') : '  • Adaptação geral de acessibilidade.'}
+
+ESTILOS DE ADAPTAÇÃO: ${estilos}
+ETAPA: ${etapaEnsino || 'Ensino Fundamental'} | ANO: ${ano}
+
+REGRAS DE QUALIDADE:
+- SIMPLIFICAR não é RESUMIR. Mantenha o contexto para o aluno raciocinar.
+- Use **negrito** para termos e conceitos fundamentais.
+- Matemática: LaTeX ($\\frac{a}{b}$, $x^2$).
+- Para fill_blanks: reescreva como afirmação e insira _________ nas palavras-chave.
+
+ADAPTAÇÕES EXTRAS: ${adaptacoes || 'Nenhuma.'}
+
+⚠️ LEMBRETE: Gere EXATAMENTE ${totalRequested} questões conforme os tipos definidos na sua missão principal.`;
 
       if (fileBase64) {
-        userPrompt += '\n\n[Arquivo também enviado. Use o texto acima como base.]';
+        userPrompt += '\n\n[Arquivo de imagem enviado. Use o texto acima como base principal.]';
       }
     }
 
