@@ -296,7 +296,8 @@ export async function POST(req: Request) {
     rateLimit70B = false; // reset por request
     rateLimit8B = false;  // reset por request
     const qTypes = questionTypes as any;
-    const materialSnippet = (material || '').slice(0, 2500); // 2500 chars ≈ ~600 tokens para economizar TPM
+    // Contexto amplo restaurado para 5000 chars (~1.3k tokens)
+    const materialSnippet = (material || '').slice(0, 5000);
 
     // Monta lista de jobs { typeKey, qty }
     // ORDEM: essay vem primeiro para garantir que pega budget de tokens fresco
