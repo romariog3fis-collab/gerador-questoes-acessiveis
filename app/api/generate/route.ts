@@ -14,14 +14,16 @@ export const dynamic = 'force-dynamic';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Rastreia se Groq já retornou 429 nesta requisição (skip to Gemini)
-let groqRateLimited = false;
+// Rastreia limites por modelo do Groq
+let rateLimit70B = false;
+let rateLimit8B = false;
 
 // ── Utilitários de chamada ──────────────────────────────────────────────────
 async function callGroq(
   key: string, model: string, system: string, user: string, tokens = 800
 ): Promise<string | null> {
-  if (groqRateLimited) return null;  // já sabemos que Groq está limitado
+  if (model === GROQ_PRIMARY && rateLimit70B) return null;
+  if (model === GROQ_SMALL && rateLimit8B) return null;
   try {
     const res = await fetch(GROQ_URL, {
       method: 'POST',
@@ -35,8 +37,9 @@ async function callGroq(
       }),
     });
     if (res.status === 429) {
-      groqRateLimited = true;  // marca: pula para Gemini
-      console.warn(`[Groq/${model}] Rate limited (429) — switching to Gemini`);
+      if (model === GROQ_PRIMARY) rateLimit70B = true;
+      if (model === GROQ_SMALL) rateLimit8B = true;
+      console.warn(`[Groq/${model}] Rate limited (429) — trying fallback`);
       return null;
     }
     if (!res.ok) {
@@ -103,10 +106,13 @@ async function callAI(
   system: string, user: string,
   tokens = 800, fileBase64?: string
 ): Promise<string | null> {
-  if (groqKey && !groqRateLimited) {
-    const r1 = await callGroq(groqKey, GROQ_PRIMARY, system, user, tokens);
-    if (r1) return r1;
-    if (!groqRateLimited) {
+  // Tenta Groq 70B, se falhar ou limitado, tenta 8B
+  if (groqKey) {
+    if (!rateLimit70B) {
+      const r1 = await callGroq(groqKey, GROQ_PRIMARY, system, user, tokens);
+      if (r1) return r1;
+    }
+    if (!rateLimit8B) {
       const r2 = await callGroq(groqKey, GROQ_SMALL, system, user, tokens);
       if (r2) return r2;
     }
@@ -287,9 +293,10 @@ export async function POST(req: Request) {
     }
 
     // ── Fluxo principal: uma chamada POR tipo ─────────────────────────────
-    groqRateLimited = false; // reset por request (variável de módulo pode ser reusada)
+    rateLimit70B = false; // reset por request
+    rateLimit8B = false;  // reset por request
     const qTypes = questionTypes as any;
-    const materialSnippet = (material || '').slice(0, 4000); // 4k chars ≈ ~1000 tokens
+    const materialSnippet = (material || '').slice(0, 2500); // 2500 chars ≈ ~600 tokens para economizar TPM
 
     // Monta lista de jobs { typeKey, qty }
     // ORDEM: essay vem primeiro para garantir que pega budget de tokens fresco
@@ -330,7 +337,8 @@ export async function POST(req: Request) {
       if (qs.length === 0) {
         console.warn(`[Route] ${job.typeKey} falhou — retry em 3s`);
         await sleep(3000);
-        groqRateLimited = false; // reseta para tentar Groq novamente
+        rateLimit70B = false;
+        rateLimit8B = false;
         qs = await generateQuestionsOfType({
           groqKey, geminiKey,
           typeKey: job.typeKey,
