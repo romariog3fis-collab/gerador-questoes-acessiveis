@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 const GROQ_URL       = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_PRIMARY   = 'llama-3.3-70b-versatile';
 const GROQ_SMALL     = 'llama-3.1-8b-instant';
+// Gemini: 2.5-flash (preview) → 2.0-flash → 1.5-flash
+const GEMINI_25_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent';
 const GEMINI_URL     = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GEMINI_FB_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
@@ -63,8 +65,8 @@ async function callGemini(
     generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
   });
 
-  // Tenta gemini-2.0-flash primeiro, depois 1.5-flash como fallback
-  for (const url of [GEMINI_URL, GEMINI_FB_URL]) {
+  // Tenta 2.5-flash → 2.0-flash → 1.5-flash
+  for (const url of [GEMINI_25_URL, GEMINI_URL, GEMINI_FB_URL]) {
     try {
       const res = await fetch(`${url}?key=${key}`, {
         method: 'POST',
