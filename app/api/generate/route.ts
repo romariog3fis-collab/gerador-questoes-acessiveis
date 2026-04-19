@@ -106,8 +106,11 @@ async function callAI(
   system: string, user: string,
   tokens = 800, fileBase64?: string
 ): Promise<string | null> {
-  // Tenta Groq 70B, se falhar ou limitado, tenta 8B
-  if (groqKey) {
+  // Se houver arquivo (PDF/Imagem), precisamos do Gemini (Multimodal).
+  // O Groq não "vê" o arquivo, então ele receberia material vazio e alucinaria.
+  const hasFile = !!fileBase64;
+
+  if (groqKey && !hasFile) {
     if (!rateLimit70B) {
       const r1 = await callGroq(groqKey, GROQ_PRIMARY, system, user, tokens);
       if (r1) return r1;
