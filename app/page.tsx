@@ -165,6 +165,7 @@ export default function Home() {
           etapaEnsino,
           estilosAdaptacao,
           caixaAlta,
+          incluirDescricaoVisual,
           gerarImagensIA,
           fileBase64,
           fileType,

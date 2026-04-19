@@ -193,7 +193,7 @@ export async function POST(req: Request) {
   try {
     const {
       material, adaptacoes, selectedProfiles, questionTypes, ano, etapaEnsino,
-      estilosAdaptacao, caixaAlta, gerarImagensIA,
+      estilosAdaptacao, caixaAlta, incluirDescricaoVisual, gerarImagensIA,
       fileBase64,
       isRefinement, refinementAction, questionToRefine
     } = await req.json();
@@ -226,6 +226,7 @@ export async function POST(req: Request) {
       estilosAdaptacao?.listasMarcadores     && 'listas com marcadores',
       estilosAdaptacao?.simplificarLinguagem && 'linguagem simples',
       caixaAlta                              && 'TODO O TEXTO EM MAIÚSCULAS',
+      incluirDescricaoVisual                 && 'adicionar TAG [Audiodescrição: ...] para qualquer elemento visual ou imagem mencionada na questão',
     ].filter(Boolean).join(', ') || 'padrão acessível';
 
     const imgField = gerarImagensIA ? '"imagePrompt":"descrição de ilustração didática"' : '';
