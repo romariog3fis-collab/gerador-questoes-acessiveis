@@ -64,6 +64,26 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
     }
   };
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFile(e.dataTransfer.files[0]);
+    }
+  };
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Upload de Arquivo */}
@@ -71,9 +91,12 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
         <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">Documento Base</label>
         <div 
           className={`group border-2 border-dashed rounded-[2rem] p-8 text-center transition-all cursor-pointer ${
-            file ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50 bg-slate-50/30'
+            isDragging ? 'border-blue-500 bg-blue-100' : file ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50 bg-slate-50/30'
           }`}
           onClick={() => !file && fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
           <input 
             type="file" 
