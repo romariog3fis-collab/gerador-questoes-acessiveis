@@ -54,7 +54,7 @@ async function callGroq(
 let lastGeminiError = '';
 
 async function callGemini(
-  key: string, system: string, user: string, fileBase64?: string
+  key: string, system: string, user: string, tokens: number, fileBase64?: string
 ): Promise<string | null> {
   const parts: any[] = [{ text: `${system}\n\n${user}` }];
   if (fileBase64) {
@@ -64,7 +64,7 @@ async function callGemini(
   }
   const body = JSON.stringify({
     contents: [{ role: 'user', parts }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
+    generationConfig: { temperature: 0.4, maxOutputTokens: tokens },
   });
 
   // Tenta 2.5-flash → 2.0-flash → 1.5-flash
@@ -112,13 +112,32 @@ async function callAI(
     }
   }
   if (geminiKey) {
-    return callGemini(geminiKey, system, user, fileBase64);
+    return callGemini(geminiKey, system, user, tokens, fileBase64);
   }
   return null;
 }
 
 function parseJSON(raw: string): any {
-  const clean = raw.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
+  let clean = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+  
+  // Extração robusta: encontra o primeiro '{' ou '[' e último '}' ou ']'
+  const firstBrace = clean.indexOf('{');
+  const firstBracket = clean.indexOf('[');
+  let startIdx = -1;
+  let endIdx = -1;
+
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = clean.lastIndexOf('}');
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = clean.lastIndexOf(']');
+  }
+
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    clean = clean.substring(startIdx, endIdx + 1);
+  }
+
   return JSON.parse(clean);
 }
 
