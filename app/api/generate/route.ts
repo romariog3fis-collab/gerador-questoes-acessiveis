@@ -122,14 +122,16 @@ async function generateQuestionsOfType(opts: {
   imgField: string;
   fileBase64?: string;
   startIndex: number;    // para numerar id sequencial
+  alternatives?: number; // qtd alternativas para multipla escolha
 }): Promise<any[]> {
-  const { groqKey, geminiKey, typeKey, qty, materialSnippet, contextInfo, imgField, fileBase64, startIndex } = opts;
+  const { groqKey, geminiKey, typeKey, qty, materialSnippet, contextInfo, imgField, fileBase64, startIndex, alternatives } = opts;
 
   // System prompt focado em UM tipo
   const typeDescriptions: Record<string, string> = {
     multiple_choice: `Gere EXATAMENTE ${qty} questão(ões) de MÚLTIPLA ESCOLHA.
+    REGRA CRÍTICA: Cada questão deve ter EXATAMENTE ${alternatives || 4} alternativas (opções de resposta). NUNCA gere mais que isso.
 Molde obrigatório para cada questão:
-{"id":"q#","originalNumber":"#","type":"multiple_choice","content":"enunciado da questão","options":[{"letter":"A","text":"..."},{"letter":"B","text":"..."},{"letter":"C","text":"..."},{"letter":"D","text":"..."}],"answer":"A","justification":"explicação"${imgField ? ',' + imgField : ''}}`,
+{"id":"q#","originalNumber":"#","type":"multiple_choice","content":"enunciado da questão","options":[{"letter":"A","text":"..."},{"letter":"B","text":"..."}],"answer":"A","justification":"explicação"${imgField ? ',' + imgField : ''}}`,
 
     true_false: `Gere EXATAMENTE ${qty} questão(ões) de VERDADEIRO OU FALSO.
 Molde obrigatório para cada questão:
@@ -224,6 +226,7 @@ export async function POST(req: Request) {
       estilosAdaptacao?.destacarChave        && 'negrito nas info-chave',
       estilosAdaptacao?.dividirBlocos        && 'blocos pequenos espaçados',
       estilosAdaptacao?.listasMarcadores     && 'listas com marcadores',
+      estilosAdaptacao?.titulosClaros        && 'títulos e subtítulos descritivos',
       estilosAdaptacao?.simplificarLinguagem && 'linguagem simples',
       caixaAlta                              && 'TODO O TEXTO EM MAIÚSCULAS',
       incluirDescricaoVisual                 && 'adicionar TAG [Audiodescrição: ...] para qualquer elemento visual ou imagem mencionada na questão',
@@ -260,9 +263,9 @@ export async function POST(req: Request) {
 
     // Monta lista de jobs { typeKey, qty }
     // ORDEM: essay vem primeiro para garantir que pega budget de tokens fresco
-    const jobs: { typeKey: string; qty: number }[] = [];
+    const jobs: { typeKey: string; qty: number; alternatives?: number }[] = [];
     if (qTypes?.essay?.enabled)          jobs.push({ typeKey: 'essay',           qty: qTypes.essay.quantity || 1 });
-    if (qTypes?.multipleChoice?.enabled) jobs.push({ typeKey: 'multiple_choice', qty: qTypes.multipleChoice.quantity || 1 });
+    if (qTypes?.multipleChoice?.enabled) jobs.push({ typeKey: 'multiple_choice', qty: qTypes.multipleChoice.quantity || 1, alternatives: qTypes.multipleChoice.alternatives || 4 });
     if (qTypes?.trueFalse?.enabled)      jobs.push({ typeKey: 'true_false',      qty: qTypes.trueFalse.quantity || 1 });
     if (qTypes?.fillBlanks?.enabled)     jobs.push({ typeKey: 'fill_blanks',     qty: qTypes.fillBlanks.quantity || 1 });
     if (qTypes?.matchColumns?.enabled)   jobs.push({ typeKey: 'match_columns',   qty: qTypes.matchColumns.quantity || 1 });
@@ -290,6 +293,7 @@ export async function POST(req: Request) {
         imgField,
         fileBase64,
         startIndex: idIndex,
+        alternatives: job.alternatives,
       });
 
       // Retry automático se o tipo falhou (limite transitório)
@@ -306,6 +310,7 @@ export async function POST(req: Request) {
           imgField,
           fileBase64,
           startIndex: idIndex,
+          alternatives: job.alternatives,
         });
       }
 
