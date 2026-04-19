@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import mammoth from 'mammoth';
-import { Loader2, FileText, Send, Download, Copy, Share2, Sparkles, X, History, Trash2 } from 'lucide-react';
+import { Loader2, FileText, Send, Download, Copy, Share2, Sparkles, X, History, Trash2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Componentes Refatorados
@@ -481,20 +481,28 @@ export default function Home() {
                   animate={{ opacity: 1, x: 0 }}
                   className="space-y-8"
                 >
-                  <div className="flex justify-between items-center mb-4 no-print">
+                  <div className="flex justify-between items-center mb-4 no-print flex-wrap gap-4">
                     <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
                       <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-2xl">
                         <Share2 size={20} className="rotate-45" />
                       </div>
                       Pronto para Uso
                     </h2>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                       {historyLoaded && (
                         <div className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl text-xs font-bold animate-pulse">
                           <History size={14} />
                           Material do Histórico Carregado!
                         </div>
                       )}
+                      <button onClick={() => {
+                        setResultado(null);
+                        setFile(null);
+                        setMaterial('');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }} className="bg-white text-blue-600 border border-blue-200 px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-sm hover:bg-blue-50 transition-all active:scale-95">
+                        <Plus size={14} /> NOVA AVALIAÇÃO
+                      </button>
                       <button onClick={handleDownloadDoc} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95">
                         <FileText size={14} /> EXPORTAR WORD
                       </button>
