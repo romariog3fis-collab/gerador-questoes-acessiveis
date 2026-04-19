@@ -64,7 +64,21 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
     }
   };
 
-  const [isDragging, setIsDragging] = useState(false);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  // Impede que o navegador abra o arquivo caso o usuário erre o alvo da caixa pontilhada
+  React.useEffect(() => {
+    const preventGlobalDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener('dragover', preventGlobalDrop, false);
+    window.addEventListener('drop', preventGlobalDrop, false);
+    return () => {
+      window.removeEventListener('dragover', preventGlobalDrop, false);
+      window.removeEventListener('drop', preventGlobalDrop, false);
+    };
+  }, []);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
