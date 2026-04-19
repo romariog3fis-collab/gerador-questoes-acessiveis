@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 
 // ── Provedores de IA ────────────────────────────────────────────────────────
-const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_PRIMARY  = 'llama-3.3-70b-versatile';
-const GROQ_SMALL    = 'llama-3.1-8b-instant';
-const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+const GROQ_URL       = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_PRIMARY   = 'llama-3.3-70b-versatile';
+const GROQ_SMALL     = 'llama-3.1-8b-instant';
+const GEMINI_URL     = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_FB_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -51,28 +52,37 @@ async function callGroq(
 async function callGemini(
   key: string, system: string, user: string, fileBase64?: string
 ): Promise<string | null> {
-  try {
-    const parts: any[] = [{ text: `${system}\n\n${user}` }];
-    if (fileBase64) {
-      const [meta, data] = fileBase64.split(',');
-      const mime = meta.split(':')[1].split(';')[0];
-      parts.push({ inline_data: { mime_type: mime, data } });
-    }
-    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
-      }),
-    });
-    if (!res.ok) { console.warn(`[Gemini] HTTP ${res.status}`); return null; }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
-  } catch (e) {
-    console.warn('[Gemini] exception:', e);
-    return null;
+  const parts: any[] = [{ text: `${system}\n\n${user}` }];
+  if (fileBase64) {
+    const [meta, data] = fileBase64.split(',');
+    const mime = meta.split(':')[1].split(';')[0];
+    parts.push({ inline_data: { mime_type: mime, data } });
   }
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
+  });
+
+  // Tenta gemini-2.0-flash primeiro, depois 1.5-flash como fallback
+  for (const url of [GEMINI_URL, GEMINI_FB_URL]) {
+    try {
+      const res = await fetch(`${url}?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      if (!res.ok) {
+        console.warn(`[Gemini] HTTP ${res.status} em ${url.split('/models/')[1]}`);
+        continue; // tenta o próximo
+      }
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+      if (text) return text;
+    } catch (e) {
+      console.warn('[Gemini] exception:', e);
+    }
+  }
+  return null;
 }
 
 async function callAI(
