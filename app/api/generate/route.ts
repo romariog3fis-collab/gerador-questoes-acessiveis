@@ -258,12 +258,13 @@ export async function POST(req: Request) {
     const materialSnippet = (material || '').slice(0, 4000); // 4k chars ≈ ~1000 tokens
 
     // Monta lista de jobs { typeKey, qty }
+    // ORDEM: essay vem primeiro para garantir que pega budget de tokens fresco
     const jobs: { typeKey: string; qty: number }[] = [];
+    if (qTypes?.essay?.enabled)          jobs.push({ typeKey: 'essay',           qty: qTypes.essay.quantity || 1 });
     if (qTypes?.multipleChoice?.enabled) jobs.push({ typeKey: 'multiple_choice', qty: qTypes.multipleChoice.quantity || 1 });
     if (qTypes?.trueFalse?.enabled)      jobs.push({ typeKey: 'true_false',      qty: qTypes.trueFalse.quantity || 1 });
     if (qTypes?.fillBlanks?.enabled)     jobs.push({ typeKey: 'fill_blanks',     qty: qTypes.fillBlanks.quantity || 1 });
     if (qTypes?.matchColumns?.enabled)   jobs.push({ typeKey: 'match_columns',   qty: qTypes.matchColumns.quantity || 1 });
-    if (qTypes?.essay?.enabled)          jobs.push({ typeKey: 'essay',           qty: qTypes.essay.quantity || 1 });
 
     if (jobs.length === 0) {
       return NextResponse.json({ error: 'Nenhum tipo de questão selecionado.' }, { status: 400 });
@@ -278,7 +279,8 @@ export async function POST(req: Request) {
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i];
       if (i > 0) await sleep(1500); // respeita TPM do Groq entre chamadas
-      const qs = await generateQuestionsOfType({
+
+      let qs = await generateQuestionsOfType({
         groqKey, geminiKey,
         typeKey: job.typeKey,
         qty: job.qty,
@@ -288,6 +290,24 @@ export async function POST(req: Request) {
         fileBase64,
         startIndex: idIndex,
       });
+
+      // Retry automático se o tipo falhou (limite transitório)
+      if (qs.length === 0) {
+        console.warn(`[Route] ${job.typeKey} falhou — retry em 3s`);
+        await sleep(3000);
+        groqRateLimited = false; // reseta para tentar Groq novamente
+        qs = await generateQuestionsOfType({
+          groqKey, geminiKey,
+          typeKey: job.typeKey,
+          qty: job.qty,
+          materialSnippet,
+          contextInfo,
+          imgField,
+          fileBase64,
+          startIndex: idIndex,
+        });
+      }
+
       allQuestions = allQuestions.concat(qs);
       idIndex += qs.length || job.qty;
     }
