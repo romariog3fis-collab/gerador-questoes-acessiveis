@@ -57,12 +57,18 @@ async function callGroq(
 let lastGeminiError = '';
 
 async function callGemini(
-  key: string, system: string, user: string, tokens: number, fileBase64?: string
+  key: string, system: string, user: string, tokens: number, fileBase64?: string, fileType?: string
 ): Promise<string | null> {
   const parts: any[] = [{ text: `${system}\n\n${user}` }];
   if (fileBase64) {
-    const [meta, data] = fileBase64.split(',');
-    const mime = meta.split(':')[1].split(';')[0];
+    let mime = fileType || 'application/pdf';
+    let data = fileBase64;
+
+    if (fileBase64.includes(',')) {
+      const [meta, rawData] = fileBase64.split(',');
+      data = rawData;
+      mime = meta.split(':')[1]?.split(';')[0] || mime;
+    }
     parts.push({ inline_data: { mime_type: mime, data } });
   }
   const body = JSON.stringify({
@@ -104,7 +110,7 @@ async function callGemini(
 async function callAI(
   groqKey: string, geminiKey: string,
   system: string, user: string,
-  tokens = 800, fileBase64?: string
+  tokens = 800, fileBase64?: string, fileType?: string
 ): Promise<string | null> {
   // Se houver arquivo (PDF/Imagem), precisamos do Gemini (Multimodal).
   // O Groq não "vê" o arquivo, então ele receberia material vazio e alucinaria.
@@ -121,7 +127,7 @@ async function callAI(
     }
   }
   if (geminiKey) {
-    return callGemini(geminiKey, system, user, tokens, fileBase64);
+    return callGemini(geminiKey, system, user, tokens, fileBase64, fileType);
   }
   return null;
 }
@@ -160,10 +166,11 @@ async function generateQuestionsOfType(opts: {
   contextInfo: string;   // perfis, estilos, etapa
   imgField: string;
   fileBase64?: string;
+  fileType?: string;
   startIndex: number;    // para numerar id sequencial
   alternatives?: number; // qtd alternativas para multipla escolha
 }): Promise<any[]> {
-  const { groqKey, geminiKey, typeKey, qty, materialSnippet, contextInfo, imgField, fileBase64, startIndex, alternatives } = opts;
+  const { groqKey, geminiKey, typeKey, qty, materialSnippet, contextInfo, imgField, fileBase64, fileType, startIndex, alternatives } = opts;
 
   // System prompt focado em UM tipo
   const typeDescriptions: Record<string, string> = {
@@ -210,7 +217,7 @@ ${materialSnippet}
 Gere as ${qty} questão(ões) de ${typeKey}. Responda apenas com o JSON.`;
 
   const tokensNeeded = Math.min(qty * 400 + 400, 1800);
-  const raw = await callAI(groqKey, geminiKey, system, user, tokensNeeded, fileBase64);
+  const raw = await callAI(groqKey, geminiKey, system, user, tokensNeeded, fileBase64, fileType);
   if (!raw) return [];
 
   try {
@@ -235,7 +242,7 @@ export async function POST(req: Request) {
     const {
       material, adaptacoes, selectedProfiles, questionTypes, ano, etapaEnsino,
       estilosAdaptacao, caixaAlta, incluirDescricaoVisual, gerarImagensIA,
-      fileBase64,
+      fileBase64, fileType,
       isRefinement, refinementAction, questionToRefine
     } = await req.json();
 
@@ -333,6 +340,7 @@ export async function POST(req: Request) {
         contextInfo,
         imgField,
         fileBase64,
+        fileType,
         startIndex: idIndex,
         alternatives: job.alternatives,
       });
@@ -351,6 +359,7 @@ export async function POST(req: Request) {
           contextInfo,
           imgField,
           fileBase64,
+          fileType,
           startIndex: idIndex,
           alternatives: job.alternatives,
         });
