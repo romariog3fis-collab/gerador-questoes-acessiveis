@@ -51,6 +51,8 @@ async function callGroq(
   }
 }
 
+let lastGeminiError = '';
+
 async function callGemini(
   key: string, system: string, user: string, fileBase64?: string
 ): Promise<string | null> {
@@ -74,14 +76,23 @@ async function callGemini(
         body,
       });
       if (!res.ok) {
-        console.warn(`[Gemini] HTTP ${res.status} em ${url.split('/models/')[1]}`);
-        continue; // tenta o próximo
+        const errObj = await res.json().catch(() => ({}));
+        const errMsg = errObj?.error?.message || `HTTP ${res.status}`;
+        console.warn(`[Gemini] Erro em ${url.split('/models/')[1]}: ${errMsg}`);
+        
+        // Se for 404 (modelo não existe), continua tentando a próxima URL.
+        // Se for outro erro (ex: 400 API Key inválida, 429 Cota Esgotada, 403), guarda o erro.
+        if (res.status !== 404) {
+          lastGeminiError = errMsg;
+        }
+        continue;
       }
       const data = await res.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
       if (text) return text;
-    } catch (e) {
-      console.warn('[Gemini] exception:', e);
+    } catch (e: any) {
+      console.warn('[Gemini] exception:', e.message);
+      lastGeminiError = e.message;
     }
   }
   return null;
@@ -319,8 +330,9 @@ export async function POST(req: Request) {
     }
 
     if (allQuestions.length === 0) {
+      const gErr = lastGeminiError ? ` (Erro IA: ${lastGeminiError})` : '';
       return NextResponse.json(
-        { error: 'Todos os provedores de IA falharam. Aguarde alguns minutos e tente novamente.' },
+        { error: 'Todos os provedores de IA falharam.' + gErr + ' Aguarde alguns minutos e tente novamente.' },
         { status: 503 }
       );
     }
