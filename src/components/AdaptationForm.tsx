@@ -174,16 +174,61 @@ const AdaptationForm: React.FC<AdaptationFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Etapa de Ensino</label>
-          <select required value={etapaEnsino} onChange={(e) => setEtapaEnsino(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-slate-700 appearance-none cursor-pointer">
+          <select 
+            required 
+            value={etapaEnsino} 
+            onChange={(e) => {
+              setEtapaEnsino(e.target.value);
+              setAno(''); // Limpa o ano ao trocar a etapa para evitar inconsistência
+            }} 
+            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-slate-700 appearance-none cursor-pointer"
+          >
             <option value="" disabled>Selecione...</option>
-            <option value="Ensino Fundamental I (Anos Iniciais)">Fundamental I</option>
-            <option value="Ensino Fundamental II (Anos Finais)">Fundamental II</option>
-            <option value="Ensino Médio">Ensino Médio</option>
+            <option value="Ensino Fundamental I (Anos Iniciais)">Fundamental I (1º ao 5º)</option>
+            <option value="Ensino Fundamental II (Anos Finais)">Fundamental II (6º ao 9º)</option>
+            <option value="Ensino Médio">Ensino Médio (1º ao 3º)</option>
           </select>
         </div>
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Ano Escolar</label>
-          <input type="text" required value={ano} onChange={(e) => setAno(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-slate-700" placeholder="Ex: 8º Ano" />
+          <select 
+            required 
+            value={ano} 
+            onChange={(e) => setAno(e.target.value)} 
+            disabled={!etapaEnsino}
+            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-slate-700 appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="" disabled>{!etapaEnsino ? 'Selecione a etapa primeiro' : 'Selecione o ano...'}</option>
+            
+            {etapaEnsino === "Ensino Fundamental I (Anos Iniciais)" && (
+              <>
+                <option value="1º Ano">1º Ano</option>
+                <option value="2º Ano">2º Ano</option>
+                <option value="3º Ano">3º Ano</option>
+                <option value="4º Ano">4º Ano</option>
+                <option value="5º Ano">5º Ano</option>
+              </>
+            )}
+
+            {etapaEnsino === "Ensino Fundamental II (Anos Finais)" && (
+              <>
+                <option value="6º Ano">6º Ano</option>
+                <option value="7º Ano">7º Ano</option>
+                <option value="8º Ano">8º Ano</option>
+                <option value="9º Ano">9º Ano</option>
+              </>
+            )}
+
+            {etapaEnsino === "Ensino Médio" && (
+              <>
+                <option value="1º Ano">1º Ano (E.M)</option>
+                <option value="2º Ano">2º Ano (E.M)</option>
+                <option value="3º Ano">3º Ano (E.M)</option>
+              </>
+            )}
+            
+            <option value="Outro">Outro / Não listado</option>
+          </select>
         </div>
       </div>
 
