@@ -176,27 +176,27 @@ async function generateQuestionsOfType(opts: {
   const typeDescriptions: Record<string, string> = {
     multiple_choice: `Gere EXATAMENTE ${qty} questão(ões) de MÚLTIPLA ESCOLHA.
     REGRA CRÍTICA: Cada questão deve ter EXATAMENTE ${alternatives || 4} alternativas (opções de resposta). NUNCA gere mais que isso.
-Molde obrigatório para cada questão:
-{"id":"q#","originalNumber":"#","type":"multiple_choice","content":"enunciado da questão","options":[{"letter":"A","text":"..."},{"letter":"B","text":"..."}],"answer":"A","justification":"explicação"${imgField ? ',' + imgField : ''}}`,
+Molde estrutural (USE O SEU MATERIAL PARA O CONTEÚDO, ISSO É APENAS UM EXEMPLO DE FORMATO):
+{"id":"q#","originalNumber":"#","type":"multiple_choice","content":"enunciado da questão baseado no material","options":[{"letter":"A","text":"..."},{"letter":"B","text":"..."}],"answer":"A","justification":"explicação"${imgField ? ',' + imgField : ''}}`,
 
     true_false: `Gere EXATAMENTE ${qty} questão(ões) de VERDADEIRO OU FALSO.
-Molde obrigatório para cada questão:
-{"id":"q#","originalNumber":"#","type":"true_false","content":"contexto da questão","assertions":[{"text":"afirmação 1","isTrue":true},{"text":"afirmação 2","isTrue":false},{"text":"afirmação 3","isTrue":true}],"answer":"V, F, V","justification":"explicação"${imgField ? ',' + imgField : ''}}
+Molde estrutural (USE O SEU MATERIAL PARA O CONTEÚDO, ISSO É APENAS UM EXEMPLO DE FORMATO):
+{"id":"q#","originalNumber":"#","type":"true_false","content":"contexto da questão","assertions":[{"text":"afirmação 1 baseada no material","isTrue":true},{"text":"afirmação 2 baseada no material","isTrue":false},{"text":"afirmação 3 baseada no material","isTrue":true}],"answer":"V, F, V","justification":"explicação"${imgField ? ',' + imgField : ''}}
 REGRA: O array "assertions" deve ter PELO MENOS 3 itens independentes.`,
 
     fill_blanks: `Gere EXATAMENTE ${qty} questão(ões) de COMPLETAR LACUNAS.
-Molde obrigatório para cada questão:
-{"id":"q#","originalNumber":"#","type":"fill_blanks","content":"A _________ ocorreu em 1822 quando o Brasil se separou da _________ portuguesa, tornando-se _________.","blanks":["Independência","coroa","soberano"],"answer":"Independência, coroa, soberano","justification":"explicação"${imgField ? ',' + imgField : ''}}
-REGRA CRÍTICA: O campo "content" DEVE conter a frase com os espaços "_________" já preenchidos. Substitua as PALAVRAS-CHAVE por "_________". Array "blanks" deve ter mínimo 3 itens.`,
+Molde estrutural (USE O SEU MATERIAL PARA O CONTEÚDO, NUNCA USE ESTE EXEMPLO LITERAL):
+{"id":"q#","originalNumber":"#","type":"fill_blanks","content":"Segundo o material, o processo de _________ ocorre devido a _________ e gera _________.","blanks":["conceito1","conceito2","conceito3"],"answer":"conceito1, conceito2, conceito3","justification":"explicação"${imgField ? ',' + imgField : ''}}
+REGRA CRÍTICA: O campo "content" DEVE conter o texto extraído do seu material com os espaços "_________" já aplicados onde ficariam os termos chaves. O array "blanks" deve ter mínimo 3 itens.`,
 
     match_columns: `Gere EXATAMENTE ${qty} questão(ões) de RELACIONAR COLUNAS.
-Molde obrigatório para cada questão:
-{"id":"q#","originalNumber":"#","type":"match_columns","content":"Relacione os conceitos da Coluna A com as definições da Coluna B:","pairs":[{"left":"Conceito A","right":"Definição 1"},{"left":"Conceito B","right":"Definição 2"},{"left":"Conceito C","right":"Definição 3"},{"left":"Conceito D","right":"Definição 4"}],"answer":"A-1, B-2, C-3, D-4","justification":"explicação"${imgField ? ',' + imgField : ''}}
-REGRA: Array "pairs" deve ter NO MÍNIMO 4 pares.`,
+Molde estrutural (USE O SEU MATERIAL PARA O CONTEÚDO):
+{"id":"q#","originalNumber":"#","type":"match_columns","content":"Relacione os conceitos da Coluna A com as definições da Coluna B:","pairs":[{"left":"Termo X do material","right":"Definição X do material"},{"left":"Termo Y","right":"Definição Y"},{"left":"Termo Z","right":"Definição Z"},{"left":"Termo W","right":"Definição W"}],"answer":"A-1, B-2, C-3, D-4","justification":"explicação"${imgField ? ',' + imgField : ''}}
+REGRA: Array "pairs" deve ter NO MÍNIMO 4 pares baseados no conteúdo fornecido.`,
 
     essay: `Gere EXATAMENTE ${qty} questão(ões) DISCURSIVA(S).
-Molde obrigatório para cada questão:
-{"id":"q#","originalNumber":"#","type":"essay","content":"Enunciado pedindo ao aluno que redija, explique ou analise...","answer":"Chave de correção com os pontos esperados na resposta","justification":"explicação"${imgField ? ',' + imgField : ''}}`,
+Molde estrutural (USE O SEU MATERIAL PARA O CONTEÚDO):
+{"id":"q#","originalNumber":"#","type":"essay","content":"Enunciado pedindo ao aluno que redija, explique ou analise algo presente no material...","answer":"Chave de correção com os pontos esperados na resposta","justification":"explicação"${imgField ? ',' + imgField : ''}}`,
   };
 
   const system = `Você é um gerador de questões para educação inclusiva. 
