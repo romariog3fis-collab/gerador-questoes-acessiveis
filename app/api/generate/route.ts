@@ -1,6 +1,25 @@
 import { NextResponse } from 'next/server';
 
 // ── Provedores de IA ────────────────────────────────────────────────────────
+// OpenRouter é o provedor PRIMÁRIO. Tenta uma lista de modelos gratuitos (":free")
+// em ordem antes de cair para Groq/Gemini (também de camada gratuita) como fallback.
+// A disponibilidade de modelos ":free" no OpenRouter roda de tempos em tempos —
+// confira a lista atual em https://openrouter.ai/models?max_price=0 se algum parar de responder.
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_TEXT_MODELS = [
+  'z-ai/glm-4.5-air:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'deepseek/deepseek-chat-v3-0324:free',
+  'qwen/qwen-2.5-72b-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+];
+const OPENROUTER_VISION_MODELS = [
+  'google/gemini-2.0-flash-exp:free',
+  'qwen/qwen2.5-vl-72b-instruct:free',
+  'meta-llama/llama-3.2-11b-vision-instruct:free',
+];
+
 const GROQ_URL       = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_PRIMARY   = 'llama-3.3-70b-versatile';
 const GROQ_SMALL     = 'llama-3.1-8b-instant';
@@ -17,8 +36,69 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 // Rastreia limites por modelo do Groq
 let rateLimit70B = false;
 let rateLimit8B = false;
+// Rastreia modelos gratuitos do OpenRouter que já bateram rate limit nesta request
+let blockedOpenRouterModels = new Set<string>();
 
 // ── Utilitários de chamada ──────────────────────────────────────────────────
+async function callOpenRouter(
+  key: string, model: string, system: string, user: string, tokens: number, fileBase64?: string, fileType?: string
+): Promise<string | null> {
+  if (blockedOpenRouterModels.has(model)) return null;
+  try {
+    let userContent: any = user;
+    if (fileBase64) {
+      let mime = fileType || 'application/pdf';
+      let data = fileBase64;
+      if (fileBase64.includes(',')) {
+        const [meta, rawData] = fileBase64.split(',');
+        data = rawData;
+        mime = meta.split(':')[1]?.split(';')[0] || mime;
+      }
+      userContent = [
+        { type: 'text', text: user },
+        { type: 'image_url', image_url: { url: `data:${mime};base64,${data}` } },
+      ];
+    }
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': 'https://gerador-questoes-acessiveis.vercel.app',
+        'X-Title': 'Gerador Acessível',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userContent },
+        ],
+        temperature: 0.4,
+        max_tokens: tokens,
+        response_format: { type: 'json_object' },
+        // Modelos "reasoning" (ex: GLM-4.5-Air) gastam parte do max_tokens pensando antes
+        // de responder — desativamos para sobrar orçamento inteiro para o JSON de saída.
+        reasoning: { effort: 'none' },
+      }),
+    });
+    if (res.status === 429) {
+      blockedOpenRouterModels.add(model);
+      console.warn(`[OpenRouter/${model}] Rate limited (429) — trying next free model`);
+      return null;
+    }
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.warn(`[OpenRouter/${model}] HTTP ${res.status}: ${errBody.slice(0, 150)}`);
+      return null;
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content ?? null;
+  } catch (e) {
+    console.warn(`[OpenRouter/${model}] exception:`, e);
+    return null;
+  }
+}
+
 async function callGroq(
   key: string, model: string, system: string, user: string, tokens = 800
 ): Promise<string | null> {
@@ -108,14 +188,24 @@ async function callGemini(
 }
 
 async function callAI(
-  groqKey: string, geminiKey: string,
+  openRouterKey: string, groqKey: string, geminiKey: string,
   system: string, user: string,
   tokens = 800, fileBase64?: string, fileType?: string
 ): Promise<string | null> {
-  // Se houver arquivo (PDF/Imagem), precisamos do Gemini (Multimodal).
-  // O Groq não "vê" o arquivo, então ele receberia material vazio e alucinaria.
+  // Se houver arquivo (PDF/Imagem), precisamos de um modelo multimodal (visão).
   const hasFile = !!fileBase64;
 
+  // 1) OpenRouter primeiro — percorre a lista de modelos gratuitos (":free") em ordem.
+  if (openRouterKey) {
+    const models = hasFile ? OPENROUTER_VISION_MODELS : OPENROUTER_TEXT_MODELS;
+    for (const model of models) {
+      const r = await callOpenRouter(openRouterKey, model, system, user, tokens, fileBase64, fileType);
+      if (r) return r;
+    }
+    console.warn('[callAI] OpenRouter: todos os modelos gratuitos falharam — caindo para Groq/Gemini');
+  }
+
+  // 2) Fallback: provedores diretos de camada gratuita (Groq / Gemini)
   if (groqKey && !hasFile) {
     if (!rateLimit70B) {
       const r1 = await callGroq(groqKey, GROQ_PRIMARY, system, user, tokens);
@@ -158,6 +248,7 @@ function parseJSON(raw: string): any {
 
 // ── Gerador focado em UM único tipo de questão ──────────────────────────────
 async function generateQuestionsOfType(opts: {
+  openRouterKey: string;
   groqKey: string;
   geminiKey: string;
   typeKey: string;       // ex: "true_false"
@@ -170,7 +261,7 @@ async function generateQuestionsOfType(opts: {
   startIndex: number;    // para numerar id sequencial
   alternatives?: number; // qtd alternativas para multipla escolha
 }): Promise<any[]> {
-  const { groqKey, geminiKey, typeKey, qty, materialSnippet, contextInfo, imgField, fileBase64, fileType, startIndex, alternatives } = opts;
+  const { openRouterKey, groqKey, geminiKey, typeKey, qty, materialSnippet, contextInfo, imgField, fileBase64, fileType, startIndex, alternatives } = opts;
 
   // System prompt focado em UM tipo
   const typeDescriptions: Record<string, string> = {
@@ -216,8 +307,10 @@ ${materialSnippet}
 
 Gere as ${qty} questão(ões) de ${typeKey}. Responda apenas com o JSON.`;
 
-  const tokensNeeded = Math.min(qty * 400 + 400, 1800);
-  const raw = await callAI(groqKey, geminiKey, system, user, tokensNeeded, fileBase64, fileType);
+  // Sem teto artificial baixo: cada chamada já é limitada a no máximo CHUNK_SIZE
+  // questões (ver batches no handler), então o orçamento pode escalar com segurança.
+  const tokensNeeded = Math.min(qty * 550 + 500, 3200);
+  const raw = await callAI(openRouterKey, groqKey, geminiKey, system, user, tokensNeeded, fileBase64, fileType);
   if (!raw) return [];
 
   try {
@@ -246,12 +339,13 @@ export async function POST(req: Request) {
       isRefinement, refinementAction, questionToRefine
     } = await req.json();
 
+    const openRouterKey = (process.env.OPENROUTER_API_KEY || '').trim();
     const groqKey  = (process.env.GROQ_API_KEY  || '').trim();
     const geminiKey = (process.env.GEMINI_API_KEY || '').trim();
 
-    if (!groqKey && !geminiKey) {
+    if (!openRouterKey && !groqKey && !geminiKey) {
       return NextResponse.json(
-        { error: 'Nenhuma chave de IA configurada. Configure GROQ_API_KEY ou GEMINI_API_KEY.' },
+        { error: 'Nenhuma chave de IA configurada. Configure OPENROUTER_API_KEY, GROQ_API_KEY ou GEMINI_API_KEY.' },
         { status: 500 }
       );
     }
@@ -292,7 +386,7 @@ export async function POST(req: Request) {
     if (isRefinement) {
       const sysRef = `Você é especialista em educação inclusiva. Refine a questão conforme a ação. Responda APENAS com JSON da questão refinada, mantendo o "id" original e o mesmo schema.`;
       const usrRef = `QUESTÃO:\n${JSON.stringify(questionToRefine, null, 2)}\n\nAÇÃO: ${refinementAction}`;
-      const raw = await callAI(groqKey, geminiKey, sysRef, usrRef, 1000);
+      const raw = await callAI(openRouterKey, groqKey, geminiKey, sysRef, usrRef, 1000);
       if (!raw) return NextResponse.json({ error: 'IA indisponível para refinamento.' }, { status: 503 });
       try {
         const p = parseJSON(raw);
@@ -305,6 +399,7 @@ export async function POST(req: Request) {
     // ── Fluxo principal: uma chamada POR tipo ─────────────────────────────
     rateLimit70B = false; // reset por request
     rateLimit8B = false;  // reset por request
+    blockedOpenRouterModels = new Set(); // reset por request
     const qTypes = questionTypes as any;
     // Contexto amplo restaurado para 5000 chars (~1.3k tokens)
     const materialSnippet = (material || '').slice(0, 5000);
@@ -322,51 +417,66 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nenhum tipo de questão selecionado.' }, { status: 400 });
     }
 
-    // Executa jobs sequencialmente para não exceder TPM do Groq
+    // Quebra cada job em lotes de no máximo CHUNK_SIZE questões por chamada de IA.
+    // Pedir muitas questões (ex: 10) em uma única chamada estoura o orçamento de
+    // tokens e a resposta vem truncada/incompleta — dividir em lotes menores evita isso.
+    const CHUNK_SIZE = 4;
+    const batches: { typeKey: string; qty: number; alternatives?: number }[] = [];
+    for (const job of jobs) {
+      let remaining = job.qty;
+      while (remaining > 0) {
+        const qty = Math.min(CHUNK_SIZE, remaining);
+        batches.push({ typeKey: job.typeKey, qty, alternatives: job.alternatives });
+        remaining -= qty;
+      }
+    }
+
+    // Executa lotes sequencialmente para não exceder TPM do Groq / rate limit do OpenRouter
     let allQuestions: any[] = [];
     let idIndex = 1;
     let title = 'Avaliação Adaptada';
     let overallAEEInfo = '';
 
-    for (let i = 0; i < jobs.length; i++) {
-      const job = jobs[i];
-      if (i > 0) await sleep(1500); // respeita TPM do Groq entre chamadas
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      if (i > 0) await sleep(1500); // respeita TPM entre chamadas
 
       let qs = await generateQuestionsOfType({
-        groqKey, geminiKey,
-        typeKey: job.typeKey,
-        qty: job.qty,
+        openRouterKey, groqKey, geminiKey,
+        typeKey: batch.typeKey,
+        qty: batch.qty,
         materialSnippet,
         contextInfo,
         imgField,
         fileBase64,
         fileType,
         startIndex: idIndex,
-        alternatives: job.alternatives,
+        alternatives: batch.alternatives,
       });
 
-      // Retry automático se o tipo falhou (limite transitório)
+      // Retry automático se o lote falhou (limite transitório)
       if (qs.length === 0) {
-        console.warn(`[Route] ${job.typeKey} falhou — retry em 3s`);
+        console.warn(`[Route] ${batch.typeKey} (lote de ${batch.qty}) falhou — retry em 3s`);
         await sleep(3000);
         rateLimit70B = false;
         rateLimit8B = false;
+        blockedOpenRouterModels = new Set();
         qs = await generateQuestionsOfType({
-          groqKey, geminiKey,
-          typeKey: job.typeKey,
-          qty: job.qty,
+          openRouterKey, groqKey, geminiKey,
+          typeKey: batch.typeKey,
+          qty: batch.qty,
           materialSnippet,
           contextInfo,
           imgField,
           fileBase64,
           fileType,
           startIndex: idIndex,
-          alternatives: job.alternatives,
+          alternatives: batch.alternatives,
         });
       }
 
       allQuestions = allQuestions.concat(qs);
-      idIndex += qs.length || job.qty;
+      idIndex += qs.length || batch.qty;
     }
 
     if (allQuestions.length === 0) {
@@ -379,7 +489,7 @@ export async function POST(req: Request) {
 
     // Gera título via IA usando uma chamada leve
     try {
-      const titleRaw = await callAI(groqKey, geminiKey,
+      const titleRaw = await callAI(openRouterKey, groqKey, geminiKey,
         'Responda APENAS um JSON: {"title":"título curto da avaliação","overallAEEInfo":"resumo das adaptações aplicadas"}',
         `Material: ${materialSnippet.slice(0, 500)}\nPerfis: ${perfis.join(', ')}\nEstilos: ${estilos}`,
         200
